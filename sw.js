@@ -1,0 +1,24 @@
+/* Service Worker: يخزّن ملفات التطبيق والمكتبات (CDN) ليعمل دون إنترنت بعد أول تشغيل.
+   غيّر رقم الإصدار V عند أي تحديث لتُحدَّث الذاكرة المخزّنة. */
+const V = 'mathnova-v1';
+const CORE = ['./', 'index.html', 'style.css', 'script.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'logo.png'];
+
+self.addEventListener('install', e => e.waitUntil(
+  caches.open(V).then(c => c.addAll(CORE)).then(() => self.skipWaiting())
+));
+
+self.addEventListener('activate', e => e.waitUntil(
+  caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())
+));
+
+/* الاستراتيجية: من الذاكرة أولاً مع تحديثها من الشبكة في الخلفية */
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(caches.match(e.request).then(hit => {
+    const net = fetch(e.request).then(r => {
+      if (r && (r.ok || r.type === 'opaque')) { const cp = r.clone(); caches.open(V).then(c => c.put(e.request, cp)); }
+      return r;
+    }).catch(() => hit || caches.match('index.html'));
+    return hit || net;
+  }));
+});

@@ -1,0 +1,118 @@
+/* ===== الحاسبة العلمية — التنسيق =====
+   الألوان تتغير حسب القسم عبر المتغير --ac (بنفسجي رياضيات، أزرق فيزياء، أخضر كيمياء...) */
+:root{--bg:#0b1020;--tx:#e8ecff;--mu:#97a1cc;--bd:rgba(255,255,255,.12);--gl:rgba(255,255,255,.06);
+  --in:rgba(255,255,255,.07);--sh:rgba(0,0,0,.55);--ac:#8b5cf6;--ok:#34d399;--er:#fb7185}
+[data-theme=light]{--bg:#eef1fb;--tx:#1b2140;--mu:#5d678f;--bd:rgba(20,30,80,.14);--gl:rgba(255,255,255,.72);
+  --in:rgba(255,255,255,.9);--sh:rgba(40,50,120,.2)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:var(--fs,16px)}
+body{font-family:Cairo,system-ui,sans-serif;color:var(--tx);min-height:100vh;
+  background:radial-gradient(60vw 50vh at 85% -5%,color-mix(in srgb,var(--ac) 30%,transparent),transparent),
+  radial-gradient(50vw 40vh at 5% 105%,color-mix(in srgb,var(--ac) 18%,transparent),transparent),var(--bg);
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  transition:background .5s}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+code{direction:ltr;unicode-bidi:embed;background:var(--in);padding:1px 7px;border-radius:6px;font-family:ui-monospace,monospace;font-size:.9em}
+
+/* التخطيط: جانبية | عمل | سجل */
+.app{display:grid;grid-template-columns:250px 1fr 270px;gap:14px;padding:14px;height:100vh;transition:grid-template-columns .3s}
+.app.col{grid-template-columns:76px 1fr 270px}
+.glass{background:var(--gl);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);
+  border:1px solid var(--bd);border-radius:22px;box-shadow:0 24px 50px -24px var(--sh),inset 0 1px 0 rgba(255,255,255,.12)}
+.side,.hist{padding:14px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.main{overflow:auto;padding:4px 6px}
+.icon{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--mu)}
+.icon:hover{background:var(--in);color:var(--tx)}
+
+/* العلامة والتنقل */
+.brand{display:flex;align-items:center;gap:10px;font-size:1.05rem;color:var(--ac)}
+.brand b{flex:1;color:var(--tx)}
+#nav{display:flex;flex-direction:column;gap:4px;flex:1}
+#nav button,.gnav button{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:14px;color:var(--mu);text-align:right;transition:.25s}
+#nav button i{width:20px;text-align:center}
+#nav button:hover{background:var(--in);color:var(--tx)}
+#nav button.on,.gnav button.on{background:color-mix(in srgb,var(--ac) 22%,transparent);color:var(--tx);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ac) 55%,transparent)}
+.side.collapsed .brand b,.side.collapsed #nav span,.side.collapsed .search,.side.collapsed .inst b{display:none}
+.side.collapsed #collapse i{transform:rotate(180deg)}
+.side.collapsed #nav button{justify-content:center;padding:12px 0}
+
+/* شريط البحث المتحرك */
+.search{position:relative}
+.search input{width:44px;height:44px;border-radius:30px;border:1px solid var(--bd);background:var(--in);padding:0 16px;transition:width .35s cubic-bezier(.3,1.4,.5,1),box-shadow .3s}
+.search:focus-within input,.search input:not(:placeholder-shown){width:100%;box-shadow:0 8px 24px -10px var(--ac)}
+.search>i{position:absolute;left:15px;top:14px;color:var(--ac);pointer-events:none}
+.search:not(:focus-within) input{cursor:pointer}
+#hits{position:absolute;z-index:20;top:50px;inset-inline:0;border-radius:16px;background:var(--bg);border:1px solid var(--bd);max-height:240px;overflow:auto}
+#hits:empty{display:none}
+#hits button{display:block;width:100%;text-align:right;padding:9px 14px;font-size:.9rem}
+#hits button:hover{background:var(--in)}
+#hits small{color:var(--mu);margin-inline-start:6px}
+
+/* زر التثبيت مع التقدّم */
+.inst{position:relative;overflow:hidden;display:flex;gap:10px;align-items:center;justify-content:center;padding:13px;border-radius:16px;border:1px solid var(--ac);color:var(--tx)}
+.inst .fill{position:absolute;inset:0;width:var(--p,0%);background:var(--ac);opacity:.4;transition:width .5s}
+.inst>*:not(.fill){position:relative}
+
+/* أعلى الصفحة */
+.top{display:flex;align-items:center;justify-content:space-between;margin:6px 4px 14px}
+.top h1{font-size:1.5rem;font-weight:800}
+.top h1::before{content:"";display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--ac);margin-inline-end:10px;box-shadow:0 0 14px var(--ac)}
+#histToggle{display:none}
+
+/* البطاقات والحقول */
+.card{background:var(--gl);border:1px solid var(--bd);border-radius:20px;padding:18px;margin-bottom:14px;backdrop-filter:blur(20px)}
+.card h2{font-size:1.15rem;margin-bottom:6px}
+.note{color:var(--mu);font-size:.88rem;margin-bottom:12px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:6px;scrollbar-width:thin}
+.chip{white-space:nowrap;padding:8px 14px;border-radius:30px;border:1px solid var(--bd);color:var(--mu);font-size:.88rem}
+.chip.on{background:var(--ac);color:#fff;border-color:transparent}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+label{display:flex;flex-direction:column;gap:5px;font-size:.85rem;color:var(--mu)}
+label input,label select,label textarea{background:var(--in);border:1px solid var(--bd);border-radius:12px;padding:10px 12px;color:var(--tx);outline:0;direction:ltr;text-align:left}
+label textarea{min-height:90px;direction:rtl;text-align:right}
+label input:focus,label select:focus,label textarea:focus{border-color:var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 25%,transparent)}
+.btn{background:var(--ac);color:#fff;padding:11px 22px;border-radius:14px;font-weight:600;transition:.2s}
+.btn:hover{filter:brightness(1.12);transform:translateY(-1px)}
+.btn.ghost{background:var(--in);color:var(--tx)}
+
+/* النتائج */
+.res .big{font-size:1.6rem;font-weight:800;direction:ltr;text-align:right;color:var(--ac);margin:10px 0;word-break:break-all}
+.res ol{padding-inline-start:22px;display:grid;gap:7px;line-height:1.8}
+.err{border-color:var(--er)}.err h3{color:var(--er);margin-bottom:6px}
+.loading{color:var(--mu)}
+#plot{height:340px;margin-top:10px}
+table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid var(--bd);text-align:right}
+pre{white-space:pre-wrap;background:var(--in);padding:10px;border-radius:10px;direction:ltr}
+
+/* السجل */
+.hist h3{display:flex;align-items:center;gap:8px;font-size:1rem}.hist h3 .icon{margin-inline-start:auto}
+#histList{list-style:none;display:grid;gap:8px}
+#histList li{padding:10px 12px;border-radius:14px;background:var(--in);font-size:.85rem}
+#histList small{color:var(--mu);display:block}#histList b{direction:ltr;display:block;text-align:right;word-break:break-all}
+
+/* مفتاح نهار/ليل */
+.dn{width:96px;height:46px;border-radius:46px;position:relative;border:0;transition:.5s;box-shadow:inset 0 3px 8px rgba(0,0,0,.4);
+  background:linear-gradient(120deg,#1e3a5f,#0f1e38)}
+.dn::before{content:"";position:absolute;top:5px;inset-inline-start:5px;width:36px;height:36px;border-radius:50%;background:#e8ecff;
+  box-shadow:inset -8px -4px 0 0 #b8c0e0;transition:.5s}
+[data-theme=light] .dn{background:linear-gradient(120deg,#8ecbf3,#cfeaff)}
+[data-theme=light] .dn::before{background:#f6cf2f;box-shadow:0 0 18px #f6cf2f;inset-inline-start:calc(100% - 41px)}
+.qr{width:180px;height:180px;border-radius:16px;border:2px dashed var(--bd);display:grid;place-items:center;text-align:center;padding:12px;color:var(--mu);font-size:.8rem;background:#fff}
+.qr img{width:100%;height:100%;object-fit:contain}
+
+/* نافذة */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:50;padding:20px}
+.modal[hidden]{display:none}.modal .card{max-width:420px;background:var(--bg);line-height:1.9}.modal .btn{margin-top:12px}
+
+/* شريط التنقل الزجاجي (الهاتف) */
+.gnav{display:none;position:fixed;inset-inline:12px;bottom:calc(10px + env(safe-area-inset-bottom));border-radius:999px;padding:6px;z-index:30;justify-content:space-around}
+.gnav button{flex-direction:column;gap:2px;padding:7px 8px;border-radius:999px;font-size:.62rem;align-items:center;flex:1}
+.gnav button i{font-size:1.05rem}
+
+@media(max-width:900px){
+  .app{grid-template-columns:1fr;height:auto;padding:10px 10px 100px}
+  .side{display:none}.hist{display:none}.hist.show{display:flex}
+  .gnav{display:flex}#histToggle{display:grid}.main{overflow:visible}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}

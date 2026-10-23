@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<!-- MathNova — الحاسبة العلمية الذكية (PWA) — الهيكل الرئيسي. كل المحتوى الديناميكي يُبنى في script.js -->
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MathNova — الحاسبة العلمية الذكية</title>
+<meta name="description" content="آلة حاسبة علمية شاملة: رياضيات، فيزياء، كيمياء، ميكانيكا مع شرح الخطوات والتعرف على الصور">
+<meta name="theme-color" content="#0b1020">
+
+<!-- ===== إعدادات PWA ===== -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MathNova">
+
+<!-- ===== الخطوط والأيقونات (CDN) ===== -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ===== اللوحة الجانبية (قابلة للطي) ===== -->
+  <aside class="side glass" id="side">
+    <div class="brand">
+      <img src="icon-192.png" alt="" width="30" height="30" style="border-radius:8px"><b>MathNova</b>
+      <button class="icon" id="collapse" aria-label="طي اللوحة"><i class="fa-solid fa-angles-right"></i></button>
+    </div>
+
+    <!-- شريط بحث متحرك عن الأدوات والقوانين -->
+    <div class="search">
+      <input id="q" placeholder="ابحث عن أداة أو قانون…" autocomplete="off">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <div id="hits"></div>
+    </div>
+
+    <nav id="nav"></nav>
+
+    <!-- زر التثبيت مع شريط تقدّم -->
+    <button class="inst" id="installBtn"><span class="fill"></span><i class="fa-solid fa-download"></i><b>تثبيت التطبيق</b></button>
+  </aside>
+
+  <!-- ===== مساحة العمل ===== -->
+  <main class="main">
+    <header class="top">
+      <h1 id="title"></h1>
+      <button class="icon" id="histToggle" aria-label="السجل"><i class="fa-solid fa-clock-rotate-left"></i></button>
+    </header>
+    <section id="view"></section>
+  </main>
+
+  <!-- ===== سجل العمليات ===== -->
+  <aside class="hist glass" id="hist">
+    <h3><i class="fa-solid fa-clock-rotate-left"></i> السجل
+      <button class="icon" id="clearHist" title="مسح السجل"><i class="fa-solid fa-trash"></i></button></h3>
+    <ul id="histList"></ul>
+  </aside>
+</div>
+
+<!-- شريط تنقل زجاجي للهاتف -->
+<nav class="gnav glass" id="gnav"></nav>
+
+<!-- نافذة منبثقة -->
+<div class="modal" id="modal" hidden>
+  <div class="card"><div id="modalBody"></div><button class="btn" id="modalClose">حسناً</button></div>
+</div>
+
+<!-- ===== المكتبات العالمية (CDN) بإصدارات ثابتة ===== -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/nerdamer/1.1.13/nerdamer.core.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/nerdamer/1.1.13/Algebra.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/nerdamer/1.1.13/Calculus.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/nerdamer/1.1.13/Solve.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
