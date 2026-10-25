@@ -97,6 +97,14 @@ const FM = [
   { s: 'chem', id: 'ph', n: 'الأس الهيدروجيني pH', eq: 'pH=-log(H)/log(10)', v: { pH: '', H: 'mol/L' } },
   { s: 'chem', id: 'yield', n: 'النسبة المئوية للناتج', eq: 'Y=act/theo*100', v: { Y: '%', act: 'g', theo: 'g' } },
   { s: 'chem', id: 'half', n: 'التحلل ونصف العمر', eq: 'N=N0*(1/2)^(t/th)', v: { N: '', N0: '', t: 's', th: 's' }, num: true },
+  { s: 'phys', id: 'work2', n: 'الشغل الميكانيكي', eq: 'W=F*d', v: { W: 'J', F: 'N', d: 'm' } },
+  { s: 'phys', id: 'avg', n: 'السرعة المتوسطة', eq: 'v=d/t', v: { v: 'm/s', d: 'm', t: 's' } },
+  { s: 'phys', id: 'v2', n: 'السرعة والإزاحة (بدون زمن)', eq: 'v^2=u^2+2*a*s', v: { v: 'm/s', u: 'm/s', a: 'm/s²', s: 'm' } },
+  { s: 'phys', id: 'pw', n: 'القدرة والشغل', eq: 'P=W/t', v: { P: 'W', W: 'J', t: 's' } },
+  { s: 'phys', id: 'fall', n: 'السقوط الحر', eq: 'h=1/2*g*t^2', v: { h: 'm', t: 's' }, c: { g: 9.81 } },
+  { s: 'fin', id: 'comp', n: 'الفائدة المركبة', eq: 'A=P*(1+r/n)^(n*t)', v: { A: '', P: '', r: '(معدل سنوي عشري)', n: '(مرات في السنة)', t: '(سنوات)' } },
+  { s: 'fin', id: 'loan', n: 'القسط الشهري للقرض', eq: 'pm=P*(r/12)/(1-(1+r/12)^(-12*t))', v: { pm: '/شهر', P: '', r: '(سنوي عشري)', t: '(سنوات)' } },
+  { s: 'fin', id: 'chg', n: 'نسبة التغيّر المئوية', eq: 'ch=(vn-vo)/vo*100', v: { ch: '%', vn: '(القيمة الجديدة)', vo: '(القيمة القديمة)' } },
   { s: 'phys', id: 'pe', n: 'الطاقة الكامنة', eq: 'PE=m*g*h', v: { PE: 'J', m: 'kg', h: 'm' }, c: { g: 9.81 } },
   { s: 'phys', id: 'grav', n: 'قانون الجذب العام', eq: 'F=G*m1*m2/r^2', v: { F: 'N', m1: 'kg', m2: 'kg', r: 'm' }, c: { G: 6.674e-11 } },
   { s: 'phys', id: 'esc', n: 'سرعة الإفلات', eq: 've=sqrt(2*G*M/r)', v: { ve: 'm/s', M: 'kg', r: 'm' }, c: { G: 6.674e-11 } },
@@ -211,27 +219,121 @@ function molarMass(f) {
   return { tot, rows };
 }
 
-/* ---------- 6) الفهم الطبيعي للمسائل (قواعد محلية بدون إنترنت) ---------- */
-const UNITS = [['a', /م\/ث²|m\/s²/], ['v', /م\/ث|متر\s*(?:في|\/)\s*(?:ال)?ثانية|m\/s/], ['A', /م²|متر\s*مربع|m²/], ['V', /م³|متر\s*مكعب|m³|لتر/], ['h', /متر(?!\s*(?:في|\/))|\bm\b/], ['m', /كجم|كغ|كيلوجرام|كيلوغرام|kg/], ['F', /نيوتن|newton|N\b/], ['V', /فولت|volt|V\b/], ['R', /أوم|اوم|Ω|ohm/], ['I', /أمبير|امبير|amp|A\b/], ['t', /ثانية|ثوان|s\b/]];
-const INTENTS = [[/تسارع|acceleration/i, 'newton', 'a'], [/طاقة الحركة|kinetic/i, 'kin', 'KE'], [/القوة|قوة|force/i, 'newton', 'F'], [/الجهد|فولتية|voltage/i, 'ohm', 'V'], [/التيار|current/i, 'ohm', 'I'], [/المقاومة|مقاومة|resistance/i, 'ohm', 'R'], [/الزخم|momentum/i, 'mom', 'p'], [/القدرة|power/i, 'pwr', 'P'], [/الطاقة الكامنة|potential/i, 'pe', 'PE'], [/الكثافة|density/i, 'dens', 'rho'], [/الضغط|pressure/i, 'press', 'P']];
-function nlp(text) {
-  text = text.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+/* ---------- 6) المساعد الذكي: يفهم المسألة ثم يحلّها خطوة بخطوة ----------
+   محرك قواعد محلي (يعمل دون إنترنت): يستخرج الكميات بوحداتها ويحوّلها تلقائياً (كم/س → م/ث، جرام → كجم...)،
+   ويحدد المطلوب ثم يختار القانون المناسب، ويفهم أيضاً التفاضل والتكامل والمعادلات والكيمياء والإحصاء والنسب. */
+const AR = t => t.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/٫/g, '.').replace(/٬/g, '').replace(/،/g, ',');
+/* [نمط الوحدة في النص، وحدة math.js] — الأطول والأخص أولاً */
+const UL = [
+  [/م\s*\/\s*ث²|م\/ث\^2|m\/s²|m\/s\^2|متر\s*(?:في|\/)\s*(?:ال)?ثانية\s*(?:مربعة|²)/, 'm/s^2'],
+  [/كم\s*\/\s*س|km\/h|كيلومتر\s*(?:في|\/)\s*(?:ال)?ساعة|كم\s*في\s*الساعة/, 'km/h'],
+  [/م\s*\/\s*ث|m\/s|متر\s*(?:في|\/)\s*(?:ال)?ثانية/, 'm/s'],
+  [/كجم\s*\/\s*م³|kg\/m³|kg\/m\^3/, 'kg/m^3'], [/جم\s*\/\s*مول|g\/mol/, 'g/mol'], [/مول\s*\/\s*لتر|mol\/L|مولار/, 'mol/L'],
+  [/م²|m²|متر\s*مربع/, 'm^2'], [/م³|m³|متر\s*مكعب/, 'm^3'],
+  [/درجة\s*مئوية|°\s*C|℃/, 'degC'], [/كلفن|K(?![A-Za-z])/, 'K'], [/°|درجات|درجة|degrees?/, 'deg'],
+  [/كيلونيوتن|kN/, 'kN'], [/نيوتن|newtons?|N(?![A-Za-z])/, 'N'], [/كيلوجول|kJ/, 'kJ'], [/جول|J(?![A-Za-z])/, 'J'],
+  [/كيلوواط|kW/, 'kW'], [/واط|W(?![A-Za-z])/, 'W'], [/فولت|volts?|V(?![A-Za-z])/, 'V'], [/أمبير|امبير|amps?|A(?![A-Za-z])/, 'A'],
+  [/أوم|اوم|Ω|ohms?/, 'ohm'], [/كولوم|coulombs?/, 'C'], [/فاراد/, 'F'], [/هنري/, 'H'], [/هرتز|Hz/, 'Hz'], [/باسكال|Pa(?![A-Za-z])/, 'Pa'], [/ضغط جوي|atm/, 'atm'],
+  [/لتر|L(?![A-Za-z])/, 'L'], [/مول|mol(?![A-Za-z\/])/, 'mol'],
+  [/كيلوجرام|كيلوغرام|كجم|كغ|kg/, 'kg'], [/جرام|غرام|جم|g(?![A-Za-z\/])/, 'g'],
+  [/ميل|miles?|mi(?![A-Za-z])/, 'mile'], [/قدم|feet|ft/, 'ft'], [/بوصة|inch(?:es)?|in(?![A-Za-z])/, 'inch'], [/رطل|lbs?|pounds?/, 'lb'], [/أونصة|oz/, 'oz'],
+  [/كيلومتر|km|كم(?!\/)/, 'km'], [/سنتيمتر|سم|cm/, 'cm'], [/مليمتر|ملم|mm/, 'mm'], [/متر|m(?![A-Za-z\/²³])/, 'm'],
+  [/ساعات|ساعة|hours?|hr|h(?![A-Za-z])/, 'hour'], [/دقائق|دقيقة|min/, 'minute'], [/ثانيتين|ثوان|ثانية|seconds?|sec|s(?![A-Za-z\/])/, 's']
+].map(([r, u]) => [new RegExp('^\\s*(?:' + r.source + ')'), u]);
+const unitAt = s => { for (const [r, u] of UL) if (r.test(s)) return u; return null; };
+/* مفاتيح وحدات القوانين → وحدات math.js */
+const VUM = { 'N': 'N', 'kg': 'kg', 'g': 'g', 'm/s': 'm/s', 'm/s²': 'm/s^2', 's': 's', 'J': 'J', 'V': 'V', 'A': 'A', 'Ω': 'ohm', 'W': 'W', 'm': 'm', 'Pa': 'Pa', 'm²': 'm^2', 'm³': 'm^3', 'C': 'C', 'F': 'F', 'H': 'H', 'Hz': 'Hz', 'K': 'K', 'mol': 'mol', 'L': 'L', 'atm': 'atm', 'M': 'mol/L', 'mol/L': 'mol/L', 'g/mol': 'g/mol', 'kg/m³': 'kg/m^3', 'N/m': 'N/m', 'N·m': 'N*m', 'kg·m/s': 'kg*m/s', 'rad/s': 'rad/s', '°': 'deg' };
+const mu = U => { try { return VUM[U] ? math.unit(VUM[U]) : null; } catch { return null; } };
+const unitless = U => U === '' || U === '(نسبة)' || U === '%';
+/* ما المطلوب؟ [نمط الكلمة، مفتاح الوحدة، اسم المتغير المفضّل] */
+const TG = [[/طاقت(?:ه|ها|هم)? الحركية|طاقة الحركة|الطاقة الحركية|kinetic/, 'J', 'KE'], [/الطاقة الكامنة|طاقة الوضع|potential energy/, 'J', 'PE'], [/الزخم|كمية الحركة|momentum/, 'kg·m/s', 'p'],
+  [/العزم|torque/, 'N·m', 'tau'], [/قوة الطفو|buoyan/, 'N', 'Fb'], [/تسارع|عجلة|acceleration/, 'm/s²'], [/القوة|قوة|force/, 'N'], [/السرعة|سرعة|velocity|speed/, 'm/s'],
+  [/الكتلة|كتلة|mass/, 'kg'], [/الزمن|زمن|المدة|مدة|time|period/, 's'], [/الشغل|الطاقة|طاقة|energy|work/, 'J'], [/الجهد|فولتية|voltage/, 'V'],
+  [/شدة التيار|التيار|current/, 'A'], [/المقاومة|مقاومة|resistance/, 'Ω'], [/القدرة|قدرة|power/, 'W'], [/المسافة|مسافة|الإزاحة|distance|displacement|الارتفاع|ارتفاع|نصف القطر|الطول|height|radius/, 'm'],
+  [/الضغط|ضغط|pressure/, 'Pa'], [/الكثافة|كثافة|density/, 'kg/m³', 'rho'], [/التردد|تردد|frequency/, 'Hz'], [/الشحنة|شحنة|charge/, 'C'], [/المساحة|area/, 'm²'], [/الحجم|volume/, 'L'],
+  [/عدد المولات|المولات|moles/, 'mol', 'n'], [/الأس الهيدروجيني|pH/, '', 'pH'], [/الكفاءة|كفاءة|efficiency/, '', 'eta'], [/معامل الاحتكاك/, '', 'mu'], [/المولارية|التركيز|molarity/, 'mol/L', 'C'], [/درجة الحرارة|temperature/, 'K']];
+function findTarget(text) {
+  const vi = text.search(/احسب|أوجد|اوجد|(?:^|\s)جد(?:\s|$)|ما\s+(?:هي|هو|مقدار)|(?:^|\s)كم(?:\s|$)|find|calculate|what/i), rest = vi < 0 ? text : text.slice(vi);
   let best = null;
-  for (const [re, id, t] of INTENTS) { const m = re.exec(text); if (m && (!best || m.index < best.i)) best = { i: m.index, id, t }; }
-  if (!best) { // لا يوجد قانون مطابق: جرّب كتعبير رياضي
-    const r = math.evaluate(text, scope()); return { steps: ['لم أجد قانوناً فيزيائياً في النص، فعُومل كتعبير رياضي.'], res: fmt(r) };
-  }
-  const f = FM.find(x => x.id === best.id), vals = {}, re = /-?\d+(?:\.\d+)?/g; let m; const found = [];
-  while ((m = re.exec(text))) {
-    const tail = text.slice(m.index + m[0].length, m.index + m[0].length + 24);
-    const u = UNITS.find(([, r]) => new RegExp('^\\s*(?:' + r.source + ')', 'i').test(tail));
-    if (u && u[0] in f.v && u[0] !== best.t) { vals[u[0]] = m[0]; found.push(`${u[0]} = ${m[0]}`); }
-  }
-  const missing = Object.keys(f.v).filter(k => k !== best.t && !(k in vals));
-  if (missing.length) throw new Error(`!فهمتُ أن المطلوب هو «${best.t}» من قانون «${f.n}»، لكن ينقصني: ${missing.join('، ')}. أضف قيمها مع وحداتها (مثل: 10 كجم، 5 م/ث، 50 نيوتن).`);
-  const r = solveFormula(f, { ...vals, [best.t]: '' });
-  r.steps.unshift(`فهمتُ المسألة: القانون «${f.n}» والمطلوب <code>${best.t}</code>، والمعطيات المستخرجة: ${esc(found.join('، '))}`);
+  for (const t of TG) { const re = new RegExp(t[0].source, 'gi'); let m;
+    while ((m = re.exec(rest))) { if (!/^[^\d]{0,8}\d/.test(rest.slice(m.index + m[0].length))) { if (!best || m.index < best.i) best = { i: m.index, t }; break; } } }
+  return best && best.t;
+}
+function quantities(text) {
+  const qs = [], ul = [], re = /(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g; let m;
+  while ((m = re.exec(text))) { const raw = +m[1], u = unitAt(text.slice(m.index + m[0].length, m.index + m[0].length + 28));
+    if (u) { try { qs.push({ raw, u, q: math.unit(raw, u) }); continue; } catch {} } ul.push(raw); }
+  return { qs, ul };
+}
+const nameScore = (f, t) => f.n.split(/\s+/).map(w => w.replace(/^ال/, '')).filter(w => w.length >= 3 && !/^(قانون|معادلة|عند|على)$/.test(w)).filter(w => t.includes(w)).length;
+/* اختيار القانون وحلّه */
+function physics(text, qs, ul) {
+  const tg = findTarget(text); let best = null;
+  for (const f of FM) { const names = Object.keys(f.v), ns = nameScore(f, text);
+    for (const tv of names) {
+      if (tg && tg[2] && tv !== tg[2]) continue;
+      if (tg && !tg[2]) { if (unitless(tg[1]) || unitless(f.v[tv])) continue; const a = mu(tg[1]), b = mu(f.v[tv]); if (!a || !b || !a.equalBase(b)) continue; }
+      if (!tg && ns === 0) continue;
+      const used = new Set(), vals = {}, conv = []; let ok = true;
+      for (const k of names) { if (k === tv) continue; const U = f.v[k];
+        if (unitless(U)) { const j = ul.findIndex((_, i) => !used.has('u' + i)); if (j < 0) { ok = false; break; } used.add('u' + j); vals[k] = ul[j]; continue; }
+        const b = mu(U); if (!b) { ok = false; break; }
+        const j = qs.findIndex((q, i) => !used.has(i) && q.q.equalBase(b)); if (j < 0) { ok = false; break; }
+        used.add(j); const v = k === 'dT' ? qs[j].raw : qs[j].q.toNumber(VUM[U]); vals[k] = v; if (qs[j].u !== VUM[U]) conv.push(`${qs[j].raw} ${qs[j].u} = ${fmt(v)} ${U}`); }
+      if (!ok) continue;
+      const sc = (used.size === qs.length + ul.length ? 4 : 0) + (names[0] === tv ? 2 : 0) + ns * 3;
+      if (!best || sc > best.sc) best = { f, tv, vals, conv, sc };
+    } }
+  if (!best) { const rd = qs.map(x => `${x.raw} ${x.u}`).concat(ul).join('، ') || 'لا أعداد';
+    throw new Error(`!قرأتُ الكميات: ${rd}${tg ? '' : ' — لكنني لم أعرف المطلوب.'} لم أجد قانوناً يربط هذه المعطيات بالمطلوب. جرّب ذكر المطلوب صراحةً (مثل: احسب التسارع…) مع الوحدات لكل رقم، أو استخدم قسم الفيزياء مباشرة.`); }
+  const { f, tv, vals, conv } = best, r = solveFormula(f, { ...Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, String(x)])), [tv]: '' });
+  r.steps.unshift(`فهمتُ المسألة: المطلوب <code>${tv}</code> (${f.v[tv] || 'بلا وحدة'})، والقانون المناسب «${f.n}»`, ...(conv.length ? [`تحويل الوحدات تلقائياً: ${conv.map(esc).join(' ، ')}`] : []));
   return r;
+}
+/* ---- أدوات استخراج التعبيرات الرياضية من الجمل ---- */
+const cleanExpr = t => t.replace(/×/g, '*').replace(/÷/g, '/').replace(/²/g, '^2').replace(/³/g, '^3').replace(/√/g, 'sqrt').replace(/π/g, 'pi').replace(/[−–]/g, '-').replace(/\bd[xyt]\b/g, ' ')
+  .replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2').replace(/\)\s*\(/g, ')*(').replace(/\)\s*([a-zA-Z\d])/g, ')*$1');
+function extractExpr(t) {
+  const s = cleanExpr(t).replace(/\b(?:derivative|differentiate|integral|integrate|solve|of|the|find|calculate|from|to|and|equation|function|determinant|inverse|what|is|if|for|with|at|by|in|dx|dy)\b/gi, ' ');
+  const c = (s.match(/[A-Za-z0-9_+\-*\/^().,=\s]{2,}/g) || []).map(x => x.trim()).filter(x => /[A-Za-z0-9]/.test(x) && /[xyztu\d]/i.test(x));
+  c.sort((a, b) => b.length - a.length); return c[0] || '';
+}
+const pickVar = e => { const m = e.replace(/\b(?:sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|log|ln|exp|sqrt|cbrt|abs|pi|e)\b/g, '').match(/[a-zA-Z]/); return m ? m[0] : 'x'; };
+const helpMsg = '!لم أفهم المسألة بعد. جرّب صيغاً مثل:\n• «احسب تسارع جسم كتلته 10 كجم تؤثر عليه قوة 50 نيوتن»\n• «سيارة كتلتها 1200 كجم بسرعة 72 كم/س، احسب طاقتها الحركية»\n• «اشتق x^2*sin(x)» أو «أوجد تكامل x*e^x من 0 إلى 1»\n• «حل المعادلة x^2-5x+6=0»\n• «وازن Fe + O2 -> Fe2O3» أو «الكتلة المولية Ca(OH)2»\n• «حوّل 5 كم إلى ميل» أو «20% من 150» أو «متوسط 4, 8, 15, 16»\n• «محدد [[1,2],[3,4]]»';
+function nlp(raw) {
+  const text = AR(raw).trim(); if (!text) throw new Error('!اكتب مسألتك أولاً.');
+  const T = n => MATH.find(t => t.n === n), intro = (r, msg) => { r.steps.unshift(msg); return r; }; let m;
+  if (/وازن|موازنة|balance/i.test(text)) { // موازنة معادلة كيميائية
+    const e = text.match(/[A-Za-z0-9()]+(?:\s*\+\s*[A-Za-z0-9()]+)*\s*(?:->|→|=>|=)\s*[A-Za-z0-9()]+(?:\s*\+\s*[A-Za-z0-9()]+)*/);
+    if (!e) throw new Error('!اكتب المعادلة مثل: وازن H2 + O2 -> H2O'); return intro(CHEM_EXTRA[0].run({ eq: e[0] }), `فهمتُ: موازنة المعادلة <code>${esc(e[0])}</code>`); }
+  if (/الكتلة المولية|الوزن الجزيئي|molar mass|molecular weight/i.test(text)) {
+    for (const tk of text.match(/[A-Z][A-Za-z0-9()]*/g) || []) { try { return intro(CHEM_EXTRA[1].run({ f: tk }), `فهمتُ: الكتلة المولية للمركب <code>${esc(tk)}</code>`); } catch {} }
+    throw new Error('!اكتب صيغة المركب مثل: الكتلة المولية H2SO4'); }
+  if (/حوّل|حول|convert|تحويل/i.test(text)) { // تحويل وحدات
+    const q1 = quantities(text).qs[0], i = text.search(/\s(?:إلى|الى|to|ل)\s/), u2 = i >= 0 ? unitAt(text.slice(i).replace(/^\s*(?:إلى|الى|to|ل)\s*/, '')) : null;
+    if (q1 && u2) { const r = q1.q.to(u2); return { steps: [`فهمتُ: تحويل <code>${q1.raw} ${q1.u}</code> إلى <code>${u2}</code>`, 'يُحوَّل عبر الوحدات الأساسية في النظام الدولي ثم إلى الوحدة المطلوبة.'], res: r.format({ precision: 10 }), val: r.toNumber(u2) }; } }
+  if ((m = text.match(/(\d+(?:\.\d+)?)\s*(?:%|٪|بالمئة|بالمائة|في المئة)\s*(?:من|of)\s*(\d+(?:\.\d+)?)/i))) { const p = +m[1], b = +m[2], v = p / 100 * b; return { steps: [`${p}% من ${b} = ${p}/100 × ${b}`], res: fmt(v), val: v }; }
+  if (/نسبة|percent/i.test(text) && (m = text.match(/(\d+(?:\.\d+)?)[^\d]+(\d+(?:\.\d+)?)/))) { const a = +m[1], b = +m[2]; if (!b) throw new Error('DIV0'); const v = a / b * 100; return { steps: [`النسبة المئوية = ${a} ÷ ${b} × 100`], res: fmt(v) + '%', val: v }; }
+  const bnd = text.match(/(?:من|from)\s*(-?[\d.]+|pi|π)\s*(?:إلى|الى|to)\s*(-?[\d.]+|pi|π)/i), body = bnd ? text.replace(bnd[0], ' ') : text;
+  if (/اشتق|مشتق|تفاضل|derivative|differentiate/i.test(text)) { const ex = extractExpr(body); if (!ex) throw new Error('!لم أجد الدالة. اكتبها مثل: اشتق x^2*sin(x)'); const v = pickVar(ex); return intro(T('التفاضل').run({ expr: ex, vars: v }), `فهمتُ: اشتقاق <code>${esc(ex)}</code> بالنسبة إلى ${v}`); }
+  if (/تكامل|كامل|integra/i.test(text)) { const ex = extractExpr(body); if (!ex) throw new Error('!لم أجد الدالة. اكتبها مثل: أوجد تكامل x*e^x من 0 إلى 1'); const v = pickVar(ex);
+    return intro(T('التكامل').run({ expr: ex, vars: v, a: bnd ? bnd[1].replace('π', 'pi') : '', b: bnd ? bnd[2].replace('π', 'pi') : '' }), `فهمتُ: تكامل <code>${esc(ex)}</code> ${bnd ? `من ${bnd[1]} إلى ${bnd[2]}` : '(غير محدود)'}`); }
+  if (/حل|solve|جذور|الجذور/i.test(text) && text.includes('=')) { const ex = extractExpr(body); if (ex.includes('=')) { const v = pickVar(ex); return intro(T('حل المعادلات').run({ eq: ex.replace(/\s+/g, ''), x: v }), `فهمتُ: حل المعادلة <code>${esc(ex)}</code> بالنسبة إلى ${v}`); } }
+  if ((m = text.match(/\[\[[\s\S]*?\]\]/)) && /محدد|معكوس|قيم ذاتية|منقول|determinant|inverse|eigen|transpose/i.test(text)) {
+    const op = /معكوس|inverse/i.test(text) ? 'inv' : /ذاتية|eigen/i.test(text) ? 'eig' : /منقول|transpose/i.test(text) ? 'tr' : 'det'; return intro(T('الجبر الخطي').run({ A: m[0], B: '', op }), 'فهمتُ: عملية على مصفوفة'); }
+  const Q = quantities(text);
+  if (!Q.qs.length && /متوسط|معدل|وسيط|انحراف|تباين|منوال|mean|average|median|std|variance|mode/i.test(text)) { const a = (text.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    if (a.length >= 2) { const r = T('الإحصاء').run({ d: a.join(',') }); const pick = /وسيط|median/i.test(text) ? ['الوسيط', math.median(a)] : /انحراف|std/i.test(text) ? ['الانحراف المعياري', math.std(a)] : /تباين|variance/i.test(text) ? ['التباين', math.variance(a)] : /منوال|mode/i.test(text) ? ['المنوال', math.mode(a).join('، ')] : ['المتوسط', math.mean(a)];
+      r.res = `${pick[0]} = ${fmt(pick[1])}`; r.val = typeof pick[1] === 'number' ? pick[1] : undefined; return intro(r, `فهمتُ البيانات: ${a.join(', ')}`); } }
+  if (/مقذوف|قذيفة|قذف|projectile|أُطلق|اطلق|أطلق/i.test(text)) { const sp = Q.qs.find(q => q.q.equalBase(math.unit('m/s'))), an = Q.qs.find(q => q.q.equalBase(math.unit('deg'))), h = Q.qs.find(q => q.q.equalBase(math.unit('m')));
+    if (sp && an) return intro(MECH_EXTRA[1].run({ v0: String(sp.q.toNumber('m/s')), th: String(an.q.toNumber('deg')), h0: h ? String(h.q.toNumber('m')) : '0', g: '9.81' }), 'فهمتُ: مسألة مقذوف بسرعة وزاوية إطلاق'); }
+  if (Q.qs.length || Q.ul.length) { try { return physics(text, Q.qs, Q.ul); } catch (e) { if (!/^[!]/.test(e.message)) throw e; if (!/[A-Za-z0-9]\s*[+\-*\/^]/.test(text)) throw e; } }
+  /* آخر خيار: عملية حسابية مكتوبة بالكلمات أو بالرموز */
+  const e = text.replace(/ما هو|ما هي|كم يساوي|كم ناتج|ناتج|احسب|أوجد|اوجد|=|\?|؟/g, ' ').replace(/(?:الجذر التربيعي|جذر)\s*(?:ل|لـ)?\s*([\d.]+)/g, 'sqrt($1)').replace(/([\d.]+)\s*تربيع|مربع\s*([\d.]+)/g, (x, a, b) => `(${a || b})^2`).replace(/([\d.]+)\s*تكعيب/g, '($1)^3')
+    .replace(/زائد|plus/g, '+').replace(/ناقص|minus/g, '-').replace(/مضروب في|ضرب|times/g, '*').replace(/مقسوم على|قسمة|divided by|على/g, '/').replace(/مرفوع للقوة|أس/g, '^');
+  const ex = extractExpr(e);
+  if (ex) { try { const v = math.evaluate(cleanExpr(ex), scope()); if (typeof v === 'number' && !isFinite(v)) throw new Error('DIV0'); return { steps: [`فهمتُها كعملية حسابية: <code>${esc(ex)}</code>`], res: fmt(v), val: typeof v === 'number' ? v : undefined }; } catch (er) { if (er.message === 'DIV0') throw er; } }
+  throw new Error(helpMsg);
 }
 
 /* ---------- 7) أدوات الرياضيات المتقدمة ---------- */
@@ -356,6 +458,7 @@ MATH.push(
       const st = [`العوامل الأولية: <code>${Object.entries(f).map(([p, e]) => e > 1 ? `${p}^${e}` : p).join(' × ')}</code> ${Object.keys(f).length === 1 && Object.values(f)[0] === 1 ? '(العدد أولي)' : ''}`, `ثنائي: <code>${n.toString(2)}</code> ، ثماني: <code>${n.toString(8)}</code> ، ست عشري: <code>${n.toString(16).toUpperCase()}</code>`, `عدد القواسم: <code>${Object.values(f).reduce((s, e) => s * (e + 1), 1)}</code>`];
       let res = 'n = ' + n; if (v.m) { const m = num(v.m); st.push(`gcd(${n}, ${m}) = <code>${math.gcd(n, m)}</code> ، lcm = <code>${math.lcm(n, m)}</code>`); res = `gcd = ${math.gcd(n, m)} ، lcm = ${math.lcm(n, m)}`; } return { steps: st, res }; } }
 );
+MATH.push(...FM.filter(f => f.s === 'fin').map(formulaTool));
 /* ثوابت فيزيائية تُضاف إلى المتغيرات دفعة واحدة */
 const CONSTS = { n: 'الثوابت الفيزيائية', note: 'اضغط «احسب» لإضافة هذه الثوابت إلى متغيراتك واستخدام أسمائها في أي أداة.', fields: [],
   run: () => { const C = { c0: [299792458, 'سرعة الضوء m/s'], Gc: [6.674e-11, 'ثابت الجذب'], hP: [6.62607015e-34, 'ثابت بلانك'], kB: [1.380649e-23, 'ثابت بولتزمان'], NA: [6.02214076e23, 'عدد أفوجادرو'], qe: [1.602176634e-19, 'شحنة الإلكترون'], eps0: [8.8541878128e-12, 'سماحية الفراغ'], mu0: [1.25663706212e-6, 'نفاذية الفراغ'], g0: [9.80665, 'تسارع الجاذبية'], Rg: [8.314462618, 'ثابت الغازات J/(mol·K)'] };
@@ -372,8 +475,8 @@ const SEC = {
   chem: { n: 'الكيمياء', i: 'fa-flask', c: '#22c55e', tools: [...CHEM_EXTRA, ...FM.filter(f => f.s === 'chem').map(formulaTool)] },
   mech: { n: 'الميكانيكا والهندسة', i: 'fa-gears', c: '#f59e0b', tools: [...MECH_EXTRA, ...FM.filter(f => f.s === 'mech').map(formulaTool)] },
   ai: { n: 'الذكاء والصور', i: 'fa-wand-magic-sparkles', c: '#ec4899', tools: [
-    { n: 'مسألة بلغة طبيعية', note: 'اكتب المسألة بالعربية أو الإنجليزية مع الوحدات؛ يتعرف التطبيق على القانون والمعطيات ويحلها.',
-      fields: [{ k: 'txt', l: 'المسألة', area: true, d: 'احسب تسارع جسم كتلته 10 كغ يتعرض لقوة 50 نيوتن' }], run: v => nlp(v.txt) },
+    { n: 'مسألة بلغة طبيعية', note: 'اكتب أي مسألة (فيزياء، رياضيات، كيمياء، نسب، وحدات…) بلغتك؛ يفهم المطلوب، يحوّل الوحدات تلقائياً، ويحلّها خطوة بخطوة. استخدم لوحة «مسائل» أو الإملاء الصوتي.',
+      fields: [{ k: 'txt', l: 'المسألة', area: true, d: 'سيارة كتلتها 1200 كجم تتحرك بسرعة 72 كم/س، احسب طاقتها الحركية' }], run: v => nlp(v.txt) },
     { n: 'قراءة معادلة من صورة (OCR)', note: 'التقط صورة أو اخترها؛ تُقرأ المعادلة المطبوعة وتُحسب إن أمكن. تحتاج اتصالاً بالإنترنت.',
       fields: [{ k: 'file', l: 'الصورة', file: true }],
       run: async v => { if (!v.file) throw new Error('!اختر صورة أولاً.'); if (typeof Tesseract === 'undefined') throw new Error('!مكتبة القراءة غير محمّلة؛ تحقق من الاتصال بالإنترنت.');
@@ -427,9 +530,9 @@ async function run(T, live) {
     if (r.val !== undefined && isFinite(r.val)) { vars.ans = r.val; store.set('vars', vars); }
     const sh = $('#shr'); if (sh) sh.onclick = () => navigator.share({ title: T.n, text: T.n + ': ' + r.res }).catch(() => {});
     const sv = $('#sv'); if (sv) sv.onclick = () => { const n = prompt('اسم المتغير (حروف إنجليزية):', 'r1'); if (n && /^[A-Za-z_]\w*$/.test(n)) { vars[n] = r.val; store.set('vars', vars); sv.textContent = 'تم الحفظ ✓'; } };
-    if (!live) hist.unshift({ t: T.n, r: r.res }); hist = hist.slice(0, 40); store.set('hist', hist); renderHist();
+    if (!live) hist.unshift({ t: T.n, r: r.res }); hist = hist.slice(0, cfg.hmax || 40); store.set('hist', hist); renderHist();
   } catch (e) {
-    out.innerHTML = `<div class="card err"><h3><i class="fa-solid fa-triangle-exclamation"></i> تعذّر الحساب</h3><p>${esc(explain(e))}</p></div>`;
+    out.innerHTML = `<div class="card err"><h3><i class="fa-solid fa-triangle-exclamation"></i> تعذّر الحساب</h3><p style="white-space:pre-line;line-height:1.9">${esc(explain(e))}</p></div>`;
   }
 }
 function renderHist() {
@@ -465,7 +568,7 @@ function renderCalc(v) {
   const show = () => { pr.textContent = pretty(d.value) || '\u00a0'; };
   const preview = () => { show(); res.style.color = ''; try { res.textContent = d.value.trim() ? '= ' + fmt(calcEval(d.value)) : '\u00a0'; } catch { res.textContent = '\u00a0'; } };
   const equals = () => { try { const r = calcEval(d.value), s = fmt(r); if (typeof r === 'number') { vars.ans = r; store.set('vars', vars); }
-      hist.unshift({ t: 'الحاسبة', r: pretty(d.value) + ' = ' + s }); hist = hist.slice(0, 40); store.set('hist', hist); renderHist(); show(); res.style.color = ''; res.textContent = '= ' + s; d.value = s; }
+      hist.unshift({ t: 'الحاسبة', r: pretty(d.value) + ' = ' + s }); hist = hist.slice(0, cfg.hmax || 40); store.set('hist', hist); renderHist(); show(); res.style.color = ''; res.textContent = '= ' + s; d.value = s; }
     catch (e) { res.style.color = 'var(--er)'; res.textContent = explain(e); } };
   $$('.k', v).forEach(b => b.onclick = () => {
     buzz();
@@ -493,6 +596,9 @@ const MK = {
     ['0'], ['.'], [',', ','], ['+', '+'], ['√', 'sqrt('], ['xⁿ', '^'], ['←', 'L'], ['→', 'R'], ['∛', 'cbrt('], ['π', 'pi'], ['e', 'e'], ['1/x', '1/(']],
   'دوال': [['sin', 'sin('], ['cos', 'cos('], ['tan', 'tan('], ['asin', 'asin('], ['acos', 'acos('], ['atan', 'atan('], ['sinh', 'sinh('], ['cosh', 'cosh('], ['tanh', 'tanh('], ['log', 'log10('], ['ln', 'log('], ['eˣ', 'exp('],
     ['abs', 'abs('], ['floor', 'floor('], ['ceil', 'ceil('], ['round', 'round('], ['x!', '!'], ['mod', ' mod '], ['gcd', 'gcd('], ['lcm', 'lcm('], ['nCr', 'combinations('], ['nPr', 'permutations('], ['mean', 'mean('], ['⌫', 'B']],
+  'مسائل': [['احسب', 'احسب '], ['أوجد', 'أوجد '], ['ما هي', 'ما هي '], ['كتلته', 'كتلته '], ['بسرعة', 'بسرعة '], ['قوة', 'قوة '], ['تسارع', 'تسارع '], ['زمن', 'زمن '], ['طاقتها الحركية', 'طاقتها الحركية '], ['مقاومة', 'مقاومة '], ['جهد', 'جهد '], ['تيار', 'تيار '],
+    ['كجم', ' كجم '], ['م/ث', ' م/ث '], ['م/ث²', ' م/ث² '], ['كم/س', ' كم/س '], ['نيوتن', ' نيوتن '], ['ثانية', ' ثانية '], ['متر', ' متر '], ['فولت', ' فولت '], ['أمبير', ' أمبير '], ['أوم', ' أوم '], ['جول', ' جول '], ['واط', ' واط '],
+    ['اشتق', 'اشتق '], ['تكامل', 'أوجد تكامل '], ['حل المعادلة', 'حل المعادلة '], ['وازن', 'وازن '], ['حوّل', 'حوّل '], ['من', ' من '], ['إلى', ' إلى '], ['٪', '%'], ['،', ', '], ['␣', ' '], ['⌫', 'B'], ['C', 'C']],
   'رموز': [['x', 'x'], ['y', 'y'], ['z', 'z'], ['t', 't'], ['n', 'n'], ['a', 'a'], ['b', 'b'], ['th', 'th'], ['i', 'i'], ['∞', 'Infinity'], ['°', '*pi/180'], ['%', '%'],
     ['[', '['], [']', ']'], ['[[', '[['], [']]', ']]'], ['=', '='], ['@', '@'], ['<', '<'], ['>', '>'], ['dx', 'dx'], ['dt', 'dt'], ['←', 'L'], ['→', 'R'], ['⌫', 'B'], ['C', 'C']]
 };
@@ -504,12 +610,22 @@ const mkFields = () => $$('#view input[data-k]:not([type=file]), #view textarea[
 function mkSync() { // يظهر الزر فقط حين توجد حقول نصية في الأداة الحالية
   const has = mkFields().length > 0; mkBtn.style.display = has && !mk.classList.contains('on') ? '' : 'none';
   if (!has) { mk.classList.remove('on'); document.body.classList.remove('mkon'); }
-  mkFields().forEach(f => f.inputMode = mk.classList.contains('on') && !sysKb ? 'none' : 'text');
+  mkFields().forEach(f => f.inputMode = kbOn && !sysKb ? 'none' : 'text'); // لوحة الهاتف لا تظهر أبداً عند تفعيل لوحة التطبيق
 }
 function mkShow(on) { mk.classList.toggle('on', on); document.body.classList.toggle('mkon', on); store.set('kb', on); kbOn = on; mkSync(); }
+let shiftOn = false;
+const AR_L = 'ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي ء أ إ ة ى ؤ ئ'.split(' ').map(x => [x]);
+const EL = 'H C N O F Na Mg Al Si P S Cl K Ca Fe Cu Zn Br Ag I Ba Au Hg Pb'.split(' ').map(x => [x]);
+const TABS = [...Object.keys(MK), 'ABC', 'عربي', 'كيمياء'];
+function mkKeys(tab) { // محتوى كل تبويب
+  if (tab === 'ABC') return [...'abcdefghijklmnopqrstuvwxyz'].map(c => [shiftOn ? c.toUpperCase() : c]).concat([['⇧', 'SHIFT'], ['_', '_'], ['␣', ' '], ['⌫', 'B']]);
+  if (tab === 'عربي') return [...AR_L, ['␣', ' '], ['⌫', 'B'], ['،', '، '], ['؟', '؟']];
+  if (tab === 'كيمياء') return [...EL, ['→', ' -> '], ['+', ' + '], ['(', '('], [')', ')'], ['2'], ['3'], ['4'], ['5'], ['⌫', 'B'], ['C', 'C']];
+  return MK[tab];
+}
 function mkDraw(tab = 'أساسي') {
-  mk.innerHTML = `<div class="tabs">${Object.keys(MK).map(t => `<button data-t="${t}" class="${t === tab ? 'on' : ''}">${t}</button>`).join('')}<button data-sys="1">${sysKb ? 'لوحتي' : 'abc'}</button><button data-x="1">✕</button></div>
-  <div class="kg">${MK[tab].map(([l, i = l]) => `<button data-i="${esc(i)}">${l}</button>`).join('')}</div>`;
+  mk.innerHTML = `<div class="tabs">${TABS.map(t => `<button data-t="${t}" class="${t === tab ? 'on' : ''}">${t}</button>`).join('')}<button data-sys="1">${sysKb ? 'لوحتي' : 'نظام'}</button><button data-x="1">✕</button></div>
+  <div class="kg">${mkKeys(tab).map(([l, i = l]) => `<button data-i="${esc(i)}">${l}</button>`).join('')}</div>`;
 }
 function mkInsert(i) {
   const f = lastField; if (!f || !document.contains(f)) return;
@@ -527,6 +643,7 @@ mk.addEventListener('click', e => { const b = e.target.closest('button'); if (!b
   if (b.dataset.t) return mkDraw(b.dataset.t);
   if (b.dataset.x) return mkShow(false);
   if (b.dataset.sys) { sysKb = !sysKb; mkDraw($('.tabs .on', mk)?.dataset.t); mkSync(); if (lastField) { lastField.blur(); lastField.focus(); } return; }
+  if (b.dataset.i === 'SHIFT') { shiftOn = !shiftOn; return mkDraw('ABC'); }
   mkInsert(b.dataset.i); });
 mkBtn.onclick = () => { mkShow(true); if (!lastField || !document.contains(lastField)) lastField = mkFields()[0] || null; if (lastField) lastField.focus(); };
 document.addEventListener('focusin', e => { if (mkFields().includes(e.target)) { lastField = e.target; if (kbOn && !mk.classList.contains('on')) mkShow(true); } });
@@ -558,7 +675,11 @@ function renderSettings(v) {
     ${sel('fmtn', 'صيغة الأعداد', [['n', 'عادية'], ['s', 'علمية (1.23e+5)']], cfg.sci ? 's' : 'n')}
     ${sel('ang', 'وحدة الزوايا', [['d', 'درجات DEG'], ['r', 'راديان RAD']], degMode ? 'd' : 'r')}
     ${sel('vib', 'اهتزاز الأزرار', [['0', 'متوقف'], ['1', 'مفعّل']], cfg.vib ? '1' : '0')}
-    ${sel('kbp', 'لوحة الرياضيات', [['1', 'تظهر تلقائياً عند الكتابة'], ['0', 'عند الطلب فقط']], kbOn ? '1' : '0')}</div></div>
+    ${sel('kbp', 'لوحة الرياضيات', [['1', 'تظهر تلقائياً عند الكتابة'], ['0', 'عند الطلب فقط']], kbOn ? '1' : '0')}
+    ${sel('kh', 'حجم أزرار الحاسبة', [['10px', 'صغيرة'], ['14px', 'متوسطة'], ['18px', 'كبيرة']], cfg.kh || '14px')}
+    ${sel('hmax', 'عدد عمليات السجل', [[20, '20'], [40, '40'], [100, '100'], [300, '300']], cfg.hmax || 40)}</div></div>
+  <div class="card"><h2>تثبيت التطبيق (PWA)</h2><p class="note" id="instState">${isStandalone() ? 'التطبيق مثبّت ✓' : deferred ? 'جاهز للتثبيت بضغطة واحدة ✓' : 'اضغط الزر ليطلب المتصفح تثبيت التطبيق؛ إن لم يظهر الطلب اتبع الخطوات أدناه.'}</p>
+    <button class="inst" id="inst2" style="width:100%"><span class="fill"></span><i class="fa-solid fa-download"></i><b>تثبيت التطبيق الآن</b></button><div class="how">${INSTALL_HELP}</div></div>
   <div class="card"><h2>مشاركة التطبيق</h2><p class="note">امسح الباركود أو شارك الرابط.</p><div class="qr" id="qrBox"></div><br>
   <button class="btn" id="share"><i class="fa-solid fa-share-nodes"></i> مشاركة الرابط</button></div>
   <div class="card"><h2>النسخ الاحتياطي</h2><p class="note">صدّر متغيراتك وسجلك ومفضلتك وإعداداتك كملف، واستعدها في أي جهاز.</p>
@@ -567,7 +688,7 @@ function renderSettings(v) {
     <button class="btn ghost" id="exh"><i class="fa-solid fa-file-lines"></i> تصدير السجل كنص</button></div>
   <div class="card"><h2>الصيانة</h2><button class="btn ghost" id="upd"><i class="fa-solid fa-rotate"></i> تحديث التطبيق وإفراغ الذاكرة المؤقتة</button>
     <button class="btn ghost" id="ch">مسح السجل</button> <button class="btn ghost" id="cv">مسح المتغيرات</button></div>
-  <div class="card"><h2>عن MathNova</h2><p class="note">الإصدار 3 — الحسابات تعمل على جهازك. أول تشغيل يحتاج إنترنت لتحميل المكتبات، ثم تعمل دون اتصال (ما عدا قراءة الصور).</p></div>`;
+  <div class="card"><h2>عن MathNova</h2><p class="note">الإصدار 4 — الحسابات تعمل على جهازك. أول تشغيل يحتاج إنترنت لتحميل المكتبات، ثم تعمل دون اتصال (ما عدا قراءة الصور).</p></div>`;
   const save = () => store.set('cfg', cfg), box = $('#qrBox');
   box.textContent = 'مكان الباركود: ضع الملف qr.png بجانب index.html';
   const img = new Image(); img.alt = 'باركود MathNova'; img.onload = () => { box.classList.add('ok'); box.replaceChildren(img); }; img.src = 'qr.png';
@@ -577,7 +698,10 @@ function renderSettings(v) {
   $('#fmtn').onchange = e => { cfg.sci = e.target.value === 's'; save(); };
   $('#ang').onchange = e => { degMode = e.target.value === 'd'; store.set('deg', degMode); };
   $('#vib').onchange = e => { cfg.vib = e.target.value === '1'; save(); buzz(); };
-  $('#kbp').onchange = e => { kbOn = e.target.value === '1'; store.set('kb', kbOn); };
+  $('#kbp').onchange = e => { kbOn = e.target.value === '1'; store.set('kb', kbOn); mkSync(); };
+  $('#kh').onchange = e => { cfg.kh = e.target.value; save(); document.documentElement.style.setProperty('--kh', cfg.kh); };
+  $('#hmax').onchange = e => { cfg.hmax = +e.target.value; save(); };
+  $('#inst2').onclick = installApp;
   $('#share').onclick = async () => { const d = { title: document.title, text: 'MathNova — العلم في معادلة واحدة', url: location.href }; try { navigator.share ? await navigator.share(d) : (await navigator.clipboard.writeText(location.href), modal('تم نسخ الرابط.')); } catch {} };
   const dl = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
   $('#exp').onclick = () => dl('mathnova-backup.json', JSON.stringify({ app: 'MathNova', vars, hist, favs, cfg, deg: degMode, theme: store.get('theme', 'dark'), fs: store.get('fs', '16px') }, null, 1), 'application/json');
@@ -594,7 +718,7 @@ function setTheme(t) { document.documentElement.dataset.theme = t; store.set('th
 function modal(h) { $('#modalBody').innerHTML = h; $('#modal').hidden = false; }
 
 /* ---------- 11) تشغيل التطبيق ---------- */
-setTheme(store.get('theme', 'dark')); document.documentElement.style.setProperty('--fs', store.get('fs', '16px'));
+setTheme(store.get('theme', 'dark')); document.documentElement.style.setProperty('--kh', cfg.kh || '14px'); document.documentElement.style.setProperty('--fs', store.get('fs', '16px'));
 const items = Object.entries(SEC);
 $('#nav').innerHTML = items.map(([k, S]) => `<button data-s="${k}"><i class="fa-solid ${S.i}"></i><span>${S.n}</span></button>`).join('');
 $('#gnav').innerHTML = items.filter(([k]) => !['vars', 'fav'].includes(k)).map(([k, S]) => `<button data-s="${k}"><i class="fa-solid ${S.i}"></i>${S.n.split(' ')[0]}</button>`).join('');
@@ -615,14 +739,19 @@ q.oninput = () => {
 
 /* ---------- 12) تثبيت PWA ---------- */
 let deferred = null; const ib = $('#installBtn');
-addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
-addEventListener('appinstalled', () => { ib.style.setProperty('--p', '100%'); $('b', ib).textContent = 'تم التثبيت ✓'; deferred = null; });
-if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) ib.hidden = true;
-ib.onclick = async () => {
-  if (!deferred) return modal('<b>طريقة التثبيت يدوياً:</b><br>• آيفون (Safari): زر المشاركة ← «إضافة إلى الشاشة الرئيسية».<br>• أندرويد/كمبيوتر (Chrome أو Edge): قائمة المتصفح ← «تثبيت التطبيق».<br>يظهر الزر الآلي بعد زيارة الصفحة عبر https.');
-  ib.style.setProperty('--p', '35%'); deferred.prompt();
-  const { outcome } = await deferred.userChoice; ib.style.setProperty('--p', outcome === 'accepted' ? '100%' : '0%'); deferred = null;
-};
+const INSTALL_HELP = '<b>آيفون / آيباد (Safari):</b> اضغط زر المشاركة ⬆️ ← «إضافة إلى الشاشة الرئيسية» ← «إضافة».<br><b>أندرويد (Chrome):</b> اضغط زر «تثبيت التطبيق»، أو قائمة ⋮ ← «تثبيت التطبيق» / «إضافة إلى الشاشة الرئيسية».<br><b>كمبيوتر (Chrome / Edge):</b> أيقونة التثبيت ⊕ في شريط العنوان، أو القائمة ← «تثبيت MathNova».<br><small>يلزم فتح الموقع عبر https (GitHub Pages يوفره)، وقد يحتاج المتصفح زيارتين للصفحة ليعرض طلب التثبيت.</small>';
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+const setP = p => $$('.inst').forEach(b => b.style.setProperty('--p', p));
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; const st = $('#instState'); if (st) st.textContent = 'جاهز للتثبيت بضغطة واحدة ✓'; });
+addEventListener('appinstalled', () => { setP('100%'); $$('.inst b').forEach(b => b.textContent = 'تم التثبيت ✓'); deferred = null; });
+if (isStandalone()) ib.hidden = true;
+/* يطلب من المتصفح تثبيت التطبيق (PWA) عند الضغط */
+async function installApp() {
+  if (isStandalone()) return modal('التطبيق مثبّت بالفعل ويعمل الآن كتطبيق مستقل ✓');
+  if (!deferred) return modal('<b>طريقة التثبيت:</b><br>' + INSTALL_HELP);
+  setP('35%'); deferred.prompt(); const { outcome } = await deferred.userChoice; setP(outcome === 'accepted' ? '100%' : '0%'); deferred = null;
+}
+ib.onclick = installApp;
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 
 renderHist(); const h0 = location.hash.slice(1); open(SEC[h0] ? h0 : 'calc');

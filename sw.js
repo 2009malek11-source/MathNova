@@ -1,6 +1,6 @@
 /* Service Worker — MathNova: يخزّن ملفات التطبيق والمكتبات (CDN) ليعمل دون إنترنت بعد أول تشغيل.
    غيّر رقم الإصدار V عند أي تحديث لتُحدَّث الذاكرة المخزّنة. */
-const V = 'mathnova-v3';
+const V = 'mathnova-v4';
 const CORE = ['./', 'index.html', 'style.css', 'script.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'logo.png', 'qr.png'];
 /* المكتبات الخارجية تُخزَّن مسبقاً (بدون إفشال التثبيت إن تعذّر أحدها) */
 const CDN = [
