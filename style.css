@@ -116,3 +116,32 @@ pre{white-space:pre-wrap;background:var(--in);padding:10px;border-radius:10px;di
   .gnav{display:flex}#histToggle{display:grid}.main{overflow:visible}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ===== الحاسبة ذات الأزرار ===== */
+.calc{max-width:540px;margin-inline:auto}
+.disp{width:100%;background:transparent;border:0;border-bottom:1px solid var(--bd);font-size:1.15rem;padding:8px 4px;outline:0;text-align:left;direction:ltr;color:var(--mu)}
+.pretty{min-height:2.2rem;font-size:1.6rem;direction:ltr;text-align:right;overflow-x:auto;white-space:nowrap;padding:6px 2px}
+.cres{font-size:2.2rem;font-weight:800;direction:ltr;text-align:right;color:var(--ac);min-height:3.2rem;overflow-x:auto;white-space:nowrap}
+.keys{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px}
+.k{padding:14px 0;border-radius:14px;background:var(--in);border:1px solid var(--bd);font-weight:600;font-size:1rem;direction:ltr;transition:.12s}
+.k:active{transform:scale(.93);background:var(--ac);color:#fff}
+.k.op{color:var(--ac);font-size:1.15rem}.k.fn{background:color-mix(in srgb,var(--ac) 12%,var(--in));font-size:.9rem}
+.k.mem{font-size:.8rem;color:var(--mu)}.k.eq{background:var(--ac);color:#fff;font-size:1.3rem}.k.sec{box-shadow:inset 0 0 0 2px var(--ac)}
+
+/* ===== لوحة الرياضيات العامة (لكل الأدوات) ===== */
+.mk{position:fixed;inset-inline:8px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:40;padding:8px;max-width:640px;margin-inline:auto;display:none}
+.mk.on{display:block}
+.mk .tabs{display:flex;gap:6px;margin-bottom:6px}
+.mk .tabs button{flex:1;padding:6px 4px;border-radius:10px;font-size:.8rem;color:var(--mu)}
+.mk .tabs button.on{background:var(--ac);color:#fff}
+.mk .kg{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;max-height:38vh;overflow:auto}
+.mk .kg button{padding:10px 0;border-radius:10px;background:var(--in);border:1px solid var(--bd);font-size:.92rem;direction:ltr}
+.mk .kg button:active{background:var(--ac);color:#fff}
+#mkBtn{position:fixed;left:14px;bottom:calc(90px + env(safe-area-inset-bottom));z-index:41;width:50px;height:50px;border-radius:50%;background:var(--ac);color:#fff;font-size:1.3rem;box-shadow:0 10px 24px -8px var(--ac)}
+body.mkon .main{padding-bottom:300px}
+@media(min-width:901px){.mk{bottom:12px}#mkBtn{bottom:20px}}
+
+/* ===== الباركود المزخرف ===== */
+.qr.ok{width:min(260px,100%);height:auto;border:0;padding:0;background:none}
+.qr.ok img{width:100%;height:auto;display:block;border-radius:22px;box-shadow:0 14px 34px -14px var(--sh)}
+select{cursor:pointer}

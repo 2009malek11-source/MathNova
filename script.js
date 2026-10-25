@@ -13,10 +13,17 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-const fmt = x => { try { return typeof x === 'number' ? String(+x.toPrecision(10)) : math.format(x, { precision: 10 }); } catch { return String(x); } };
+/* إعدادات المستخدم: الدقة، الصيغة العلمية، الاهتزاز */
+const cfg = store.get('cfg', { prec: 10, sci: false, vib: false });
+const buzz = () => { if (cfg.vib && navigator.vibrate) navigator.vibrate(12); };
+const fmt = x => { try { if (typeof x === 'number') return cfg.sci ? x.toExponential(cfg.prec - 1) : String(+x.toPrecision(cfg.prec)); return math.format(x, { precision: cfg.prec }); } catch { return String(x); } };
+let favs = store.get('favs', []);   // الأدوات المفضلة
 let vars = store.get('vars', {});      // المتغيرات المخصصة المحفوظة
 let hist = store.get('hist', []);      // سجل العمليات
-const scope = () => ({ ...vars });
+/* دوال مثلثية بالدرجات تُستخدم في وضع DEG */
+const D = Math.PI / 180;
+const TRIG = { sind: x => Math.sin(x * D), cosd: x => Math.cos(x * D), tand: x => Math.tan(x * D), asind: x => Math.asin(x) / D, acosd: x => Math.acos(x) / D, atand: x => Math.atan(x) / D };
+const scope = () => ({ ...TRIG, ...vars });
 /* تحويل نص حقل إلى رقم (يقبل تعبيرات مثل 3*4 والمتغيرات المحفوظة) */
 const num = t => {
   const v = math.evaluate(String(t), scope());
@@ -35,6 +42,7 @@ function explain(e) {
   if ((x = /Undefined symbol (\w+)/.exec(m))) return `الرمز «${x[1]}» غير معرّف. اكتب قيمته، أو احفظه في قسم «المتغيرات»، وتحقّق من اسم الدالة (مثل sin وليس sen).`;
   if (/singular|determinant is zero/i.test(m)) return 'المصفوفة شاذة (محددها يساوي صفراً) فلا يوجد لها معكوس.';
   if (/dimension|size|square/i.test(m)) return 'أبعاد المصفوفة لا تناسب العملية (المحدد والمعكوس والقيم الذاتية تحتاج مصفوفة مربعة). الصيغة الصحيحة مثل [[1,2],[3,4]].';
+  if (/Units do not match|not found|Unit/i.test(m) && /unit/i.test(m)) return 'الوحدتان غير متوافقتين أو إحداهما غير معروفة. اكتب الوحدة بالرمز الإنجليزي (مثل km, m, kg, lb, degC, degF, bar, psi, kWh) وتأكد أنهما من نفس النوع (طول إلى طول مثلاً).';
   if (/Parenthes|Unexpected|Syntax|Value expected|char/i.test(m)) return 'صياغة التعبير غير صحيحة: تحقّق من الأقواس وعلامات العمليات (* و / و ^) وأن لكل عملية طرفين. التفاصيل: ' + m;
   return 'تعذّر إتمام العملية: ' + m;
 }
@@ -85,7 +93,25 @@ const FM = [
   { s: 'chem', id: 'conc', n: 'المولارية', eq: 'C=n/V', v: { C: 'mol/L', n: 'mol', V: 'L' } },
   { s: 'chem', id: 'molal', n: 'المولالية', eq: 'mb=n/w', v: { mb: 'mol/kg', n: 'mol', w: 'kg' } },
   { s: 'chem', id: 'mol', n: 'عدد المولات من الكتلة', eq: 'n=m/M', v: { n: 'mol', m: 'g', M: 'g/mol' } },
-  { s: 'chem', id: 'dil', n: 'قانون التخفيف', eq: 'C1*V1=C2*V2', v: { C1: 'M', V1: 'L', C2: 'M', V2: 'L' } }
+  { s: 'chem', id: 'dil', n: 'قانون التخفيف', eq: 'C1*V1=C2*V2', v: { C1: 'M', V1: 'L', C2: 'M', V2: 'L' } },
+  { s: 'chem', id: 'ph', n: 'الأس الهيدروجيني pH', eq: 'pH=-log(H)/log(10)', v: { pH: '', H: 'mol/L' } },
+  { s: 'chem', id: 'yield', n: 'النسبة المئوية للناتج', eq: 'Y=act/theo*100', v: { Y: '%', act: 'g', theo: 'g' } },
+  { s: 'chem', id: 'half', n: 'التحلل ونصف العمر', eq: 'N=N0*(1/2)^(t/th)', v: { N: '', N0: '', t: 's', th: 's' }, num: true },
+  { s: 'phys', id: 'pe', n: 'الطاقة الكامنة', eq: 'PE=m*g*h', v: { PE: 'J', m: 'kg', h: 'm' }, c: { g: 9.81 } },
+  { s: 'phys', id: 'grav', n: 'قانون الجذب العام', eq: 'F=G*m1*m2/r^2', v: { F: 'N', m1: 'kg', m2: 'kg', r: 'm' }, c: { G: 6.674e-11 } },
+  { s: 'phys', id: 'esc', n: 'سرعة الإفلات', eq: 've=sqrt(2*G*M/r)', v: { ve: 'm/s', M: 'kg', r: 'm' }, c: { G: 6.674e-11 } },
+  { s: 'phys', id: 'pend', n: 'زمن تذبذب البندول', eq: 'T=2*pi*sqrt(Lp/g)', v: { T: 's', Lp: 'm' }, c: { g: 9.81 } },
+  { s: 'phys', id: 'hooke', n: 'قانون هوك (الزنبرك)', eq: 'F=k*x', v: { F: 'N', k: 'N/m', x: 'm' } },
+  { s: 'phys', id: 'cent', n: 'القوة المركزية', eq: 'F=m*v^2/r', v: { F: 'N', m: 'kg', v: 'm/s', r: 'm' } },
+  { s: 'phys', id: 'dens', n: 'الكثافة', eq: 'rho=m/V', v: { rho: 'kg/m³', m: 'kg', V: 'm³' } },
+  { s: 'phys', id: 'press', n: 'الضغط', eq: 'P=F/A', v: { P: 'Pa', F: 'N', A: 'm²' } },
+  { s: 'phys', id: 'buoy', n: 'قوة الطفو', eq: 'Fb=rho*V*g', v: { Fb: 'N', rho: 'kg/m³', V: 'm³' }, c: { g: 9.81 } },
+  { s: 'phys', id: 'cap', n: 'المكثف', eq: 'Q=C*V', v: { Q: 'C', C: 'F', V: 'V' } },
+  { s: 'phys', id: 'rc', n: 'ثابت زمن دائرة RC', eq: 'tau=R*C', v: { tau: 's', R: 'Ω', C: 'F' } },
+  { s: 'mech', id: 'beam', n: 'انحناء عارضة (حمل مركزي)', eq: 'd=F*L^3/(48*E*I)', v: { d: 'm', F: 'N', L: 'm', E: 'Pa', I: 'm⁴' } },
+  { s: 'mech', id: 'sf', n: 'معامل الأمان', eq: 'n=sy/sigma', v: { n: '', sy: 'Pa', sigma: 'Pa' } },
+  { s: 'mech', id: 'euler', n: 'حمل الانبعاج (أويلر)', eq: 'Pcr=pi^2*E*I/(K*L)^2', v: { Pcr: 'N', E: 'Pa', I: 'm⁴', K: '', L: 'm' } },
+  { s: 'mech', id: 'mpow', n: 'القدرة الدورانية', eq: 'P=tau*w', v: { P: 'W', tau: 'N·m', w: 'rad/s' } }
 ];
 
 /* حل قانون: يعزل المجهول رمزياً (nerdamer) وإن تعذّر يحله عددياً (نيوتن) */
@@ -131,6 +157,10 @@ function solveFormula(f, v) {
     steps.push(`إعادة الترتيب: <code>${t} = ${esc(sol)}</code>`);
     steps.push(`التعويض: <code>${t} = ${esc(sol.replace(/\b[A-Za-z_]\w*\b/g, w => (w in all ? `(${fmt(all[w])})` : w)))}</code>`);
   }
+  try { // التحقق بالتعويض العكسي في المعادلة الأصلية
+    const lv = math.evaluate(L, { ...all, [t]: val }), rv = math.evaluate(R, { ...all, [t]: val });
+    if (typeof lv === 'number' && typeof rv === 'number') steps.push(`التحقق: الطرف الأيسر = <code>${fmt(lv)}</code> ، الأيمن = <code>${fmt(rv)}</code> ${Math.abs(lv - rv) <= 1e-6 * Math.max(1, Math.abs(lv), Math.abs(rv)) ? '✓' : '⚠ فرق تقريبي'}`);
+  } catch {}
   return { steps, res: `${t} = ${fmt(val)} ${unit}`, val };
 }
 const formulaTool = f => ({
@@ -182,8 +212,8 @@ function molarMass(f) {
 }
 
 /* ---------- 6) الفهم الطبيعي للمسائل (قواعد محلية بدون إنترنت) ---------- */
-const UNITS = [['a', /م\/ث²|m\/s²/], ['v', /م\/ث|متر\s*(?:في|\/)\s*(?:ال)?ثانية|m\/s/], ['m', /كجم|كغ|كيلوجرام|كيلوغرام|kg/], ['F', /نيوتن|newton|N\b/], ['V', /فولت|volt|V\b/], ['R', /أوم|اوم|Ω|ohm/], ['I', /أمبير|امبير|amp|A\b/], ['t', /ثانية|ثوان|s\b/]];
-const INTENTS = [[/تسارع|acceleration/i, 'newton', 'a'], [/طاقة الحركة|kinetic/i, 'kin', 'KE'], [/القوة|قوة|force/i, 'newton', 'F'], [/الجهد|فولتية|voltage/i, 'ohm', 'V'], [/التيار|current/i, 'ohm', 'I'], [/المقاومة|مقاومة|resistance/i, 'ohm', 'R'], [/الزخم|momentum/i, 'mom', 'p'], [/القدرة|power/i, 'pwr', 'P']];
+const UNITS = [['a', /م\/ث²|m\/s²/], ['v', /م\/ث|متر\s*(?:في|\/)\s*(?:ال)?ثانية|m\/s/], ['A', /م²|متر\s*مربع|m²/], ['V', /م³|متر\s*مكعب|m³|لتر/], ['h', /متر(?!\s*(?:في|\/))|\bm\b/], ['m', /كجم|كغ|كيلوجرام|كيلوغرام|kg/], ['F', /نيوتن|newton|N\b/], ['V', /فولت|volt|V\b/], ['R', /أوم|اوم|Ω|ohm/], ['I', /أمبير|امبير|amp|A\b/], ['t', /ثانية|ثوان|s\b/]];
+const INTENTS = [[/تسارع|acceleration/i, 'newton', 'a'], [/طاقة الحركة|kinetic/i, 'kin', 'KE'], [/القوة|قوة|force/i, 'newton', 'F'], [/الجهد|فولتية|voltage/i, 'ohm', 'V'], [/التيار|current/i, 'ohm', 'I'], [/المقاومة|مقاومة|resistance/i, 'ohm', 'R'], [/الزخم|momentum/i, 'mom', 'p'], [/القدرة|power/i, 'pwr', 'P'], [/الطاقة الكامنة|potential/i, 'pe', 'PE'], [/الكثافة|density/i, 'dens', 'rho'], [/الضغط|pressure/i, 'press', 'P']];
 function nlp(text) {
   text = text.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
   let best = null;
@@ -277,9 +307,13 @@ const MATH = [
       const xs = u.map((_, i) => i * dx); for (let s = 0; s <= steps; s++) { if (snap.includes(s)) tr.push({ x: xs, y: [...u], mode: 'lines', name: 't=' + fmt(s * dt), line: {} });
         const nu = u.slice(); for (let i = 1; i < N; i++) nu[i] = u[i] + 0.4 * (u[i + 1] - 2 * u[i] + u[i - 1]); u = nu; }
       return { steps: [`المعادلة: <code>u_t = ${al}·u_xx</code>`, `شبكة من ${N} نقطة، خطوة زمنية ${fmt(dt)} (شرط الاستقرار r=0.4).`], res: `u الأعظم عند t=${fmt(T)}: ${fmt(Math.max(...u))}`, plot: plot(tr, { xaxis: { title: 'x' } }) }; } },
-  { n: 'رسم دالة', fields: [{ k: 'f', l: 'f(x)', d: 'sin(x)/x' }, { k: 'a', l: 'من', d: '-10' }, { k: 'b', l: 'إلى', d: '10' }],
-    run: v => { const f = math.compile(v.f), a = num(v.a), b = num(v.b), X = [], Y = []; for (let i = 0; i <= 500; i++) { const x = a + (b - a) * i / 500; X.push(x); let y; try { y = f.evaluate({ ...scope(), x }); } catch { y = null; } Y.push(typeof y === 'number' && isFinite(y) ? y : null); }
-      return { steps: [`الدالة: <code>${esc(v.f)}</code> على المجال [${v.a}, ${v.b}]`, 'النقاط غير المعرّفة (مثل القسمة على صفر) تُترك فجوة في الرسم.'], res: 'تم الرسم', plot: plot([{ x: X, y: Y, mode: 'lines', connectgaps: false }]) }; } }
+  { n: 'رسم دالة', note: 'ارسم عدة دوال معاً بفصلها بفاصلة منقوطة، مثل: sin(x); cos(x); x^2/10',
+    fields: [{ k: 'f', l: 'f(x)', d: 'sin(x)/x; cos(x)' }, { k: 'a', l: 'من', d: '-10' }, { k: 'b', l: 'إلى', d: '10' }],
+    run: v => { const fs = v.f.split(';').map(x => x.trim()).filter(Boolean).slice(0, 6); if (!fs.length) throw new Error('!اكتب دالة واحدة على الأقل.');
+      const a = num(v.a), b = num(v.b); if (a >= b) throw new Error('!يجب أن يكون الحد الأدنى أصغر من الأعلى.');
+      const X = Array.from({ length: 501 }, (_, i) => a + (b - a) * i / 500);
+      const tr = fs.map(src => { const f = math.compile(src); return { x: X, y: X.map(x => { try { const y = f.evaluate({ ...scope(), x }); return typeof y === 'number' && isFinite(y) ? y : null; } catch { return null; } }), mode: 'lines', connectgaps: false, name: src, line: {} }; });
+      return { steps: [`الدوال: ${fs.map(x => `<code>${esc(x)}</code>`).join(' ، ')} على المجال [${v.a}, ${v.b}]`, 'النقاط غير المعرّفة (مثل القسمة على صفر) تُترك فجوة في الرسم.'], res: `تم رسم ${fs.length} دالة`, plot: plot(tr, { showlegend: fs.length > 1 }) }; } }
 ];
 
 /* ---------- 8) أدوات الميكانيكا والكيمياء الخاصة ---------- */
@@ -304,10 +338,37 @@ const CHEM_EXTRA = [
     run: v => { const m = molarMass(v.f); return { steps: m.rows.map(([e, n, x]) => `${e}: ${n} × ${AM[e]} = ${fmt(x)} g/mol → <code>${fmt(x / m.tot * 100)}%</code>`), res: `M = ${fmt(m.tot)} g/mol`, val: m.tot }; } }
 ];
 
+/* أدوات إضافية: تحويل الوحدات، تايلور، نظرية الأعداد */
+MATH.push(
+  { n: 'تحويل الوحدات', note: 'أمثلة: km→mi ، kg→lb ، degC→degF ، bar→psi ، kWh→J ، hp→W ، m/s→km/h',
+    fields: [{ k: 'val', l: 'القيمة', d: '100' }, { k: 'from', l: 'من وحدة', d: 'km/h' }, { k: 'to', l: 'إلى وحدة', d: 'm/s' }],
+    run: v => { const x = num(v.val), r = math.unit(x, v.from).to(v.to); return { steps: [`القيمة: <code>${fmt(x)} ${esc(v.from)}</code>`, 'تُحوَّل عبر الوحدات الأساسية في النظام الدولي (SI) ثم إلى الوحدة المطلوبة.'], res: r.format({ precision: 10 }), val: r.toNumber(v.to) }; } },
+  { n: 'متسلسلة تايلور', note: 'تقريب الدالة بكثير حدود حول نقطة، مع رسم الدالة والتقريب معاً.',
+    fields: [{ k: 'expr', l: 'الدالة', d: 'sin(x)' }, { k: 'x', l: 'المتغير', d: 'x' }, { k: 'a', l: 'النقطة a', d: '0' }, { k: 'n', l: 'الرتبة (≤12)', d: '7' }],
+    run: v => { const n = Math.min(Math.max(+v.n || 5, 1), 12), a = num(v.a), x = v.x || 'x'; let cur = v.expr; const co = [], st = [];
+      for (let k = 0; k <= n; k++) { const d = Number(nerdamer(cur, { [x]: a }).evaluate().text()); if (!isFinite(d)) throw new Error('!الدالة أو مشتقاتها غير معرّفة عند النقطة a؛ اختر نقطة أخرى.'); co.push(d / math.factorial(k)); if (k < 4) st.push(`f<sup>(${k})</sup>(${a})/${k}! = <code>${fmt(d / math.factorial(k))}</code>`); cur = nerdamer(`diff(${cur},${x})`).toString(); }
+      const poly = co.map((c, k) => c === 0 ? '' : `${fmt(c)}*(${x}-${a})^${k}`).filter(Boolean).join(' + ') || '0', f = math.compile(v.expr), X = [], Y = [], T = [];
+      for (let i = 0; i <= 400; i++) { const t = a - 4 + 8 * i / 400; X.push(t); Y.push(f.evaluate({ [x]: t })); T.push(co.reduce((s, c, k) => s + c * Math.pow(t - a, k), 0)); }
+      return { steps: ['f(x) ≈ Σ f⁽ᵏ⁾(a)/k! · (x−a)ᵏ', ...st], res: poly, plot: plot([{ x: X, y: Y, mode: 'lines', name: 'الدالة' }, { x: X, y: T, mode: 'lines', name: 'تايلور', line: { dash: 'dash', color: '#fb7185' } }], { yaxis: { range: [Math.min(...Y.filter(isFinite)) - 1, Math.max(...Y.filter(isFinite)) + 1] } }) }; } },
+  { n: 'نظرية الأعداد والأنظمة', note: 'عدد صحيح موجب: التحليل لعوامل أولية والتحويل إلى ثنائي وثماني وست عشري. أدخل m اختيارياً لحساب القاسم المشترك الأكبر والمضاعف المشترك الأصغر.',
+    fields: [{ k: 'n', l: 'العدد n', d: '360' }, { k: 'm', l: 'العدد m (اختياري)', d: '84' }],
+    run: v => { const n = num(v.n); if (!Number.isInteger(n) || n < 2 || n > 1e12) throw new Error('!أدخل عدداً صحيحاً بين 2 و 1,000,000,000,000.'); let r = n; const f = {}; for (let p = 2; p * p <= r; p++) while (r % p === 0) { f[p] = (f[p] || 0) + 1; r /= p; } if (r > 1) f[r] = (f[r] || 0) + 1;
+      const st = [`العوامل الأولية: <code>${Object.entries(f).map(([p, e]) => e > 1 ? `${p}^${e}` : p).join(' × ')}</code> ${Object.keys(f).length === 1 && Object.values(f)[0] === 1 ? '(العدد أولي)' : ''}`, `ثنائي: <code>${n.toString(2)}</code> ، ثماني: <code>${n.toString(8)}</code> ، ست عشري: <code>${n.toString(16).toUpperCase()}</code>`, `عدد القواسم: <code>${Object.values(f).reduce((s, e) => s * (e + 1), 1)}</code>`];
+      let res = 'n = ' + n; if (v.m) { const m = num(v.m); st.push(`gcd(${n}, ${m}) = <code>${math.gcd(n, m)}</code> ، lcm = <code>${math.lcm(n, m)}</code>`); res = `gcd = ${math.gcd(n, m)} ، lcm = ${math.lcm(n, m)}`; } return { steps: st, res }; } }
+);
+/* ثوابت فيزيائية تُضاف إلى المتغيرات دفعة واحدة */
+const CONSTS = { n: 'الثوابت الفيزيائية', note: 'اضغط «احسب» لإضافة هذه الثوابت إلى متغيراتك واستخدام أسمائها في أي أداة.', fields: [],
+  run: () => { const C = { c0: [299792458, 'سرعة الضوء m/s'], Gc: [6.674e-11, 'ثابت الجذب'], hP: [6.62607015e-34, 'ثابت بلانك'], kB: [1.380649e-23, 'ثابت بولتزمان'], NA: [6.02214076e23, 'عدد أفوجادرو'], qe: [1.602176634e-19, 'شحنة الإلكترون'], eps0: [8.8541878128e-12, 'سماحية الفراغ'], mu0: [1.25663706212e-6, 'نفاذية الفراغ'], g0: [9.80665, 'تسارع الجاذبية'], Rg: [8.314462618, 'ثابت الغازات J/(mol·K)'] };
+    for (const k in C) vars[k] = C[k][0]; store.set('vars', vars); return { steps: Object.entries(C).map(([k, [x, d]]) => `<code>${k}</code> = ${x} — ${d}`), res: 'أُضيفت 10 ثوابت إلى المتغيرات' }; } };
+/* الأدوات ذات الرسم التفاعلي تتحدّث فور تغيير القيم */
+['رسم دالة', 'معادلة تفاضلية عادية', 'متسلسلة تايلور'].forEach(n => { const t = MATH.find(x => x.n === n); if (t) t.live = true; });
+MECH_EXTRA.forEach(t => t.live = true);
+
 /* ---------- 9) تعريف الأقسام ---------- */
 const SEC = {
+  calc: { n: 'الحاسبة', i: 'fa-calculator', c: '#6366f1', custom: renderCalc },
   math: { n: 'الرياضيات', i: 'fa-square-root-variable', c: '#8b5cf6', tools: MATH },
-  phys: { n: 'الفيزياء', i: 'fa-atom', c: '#3b82f6', tools: FM.filter(f => f.s === 'phys').map(formulaTool) },
+  phys: { n: 'الفيزياء', i: 'fa-atom', c: '#3b82f6', tools: [...FM.filter(f => f.s === 'phys').map(formulaTool), CONSTS] },
   chem: { n: 'الكيمياء', i: 'fa-flask', c: '#22c55e', tools: [...CHEM_EXTRA, ...FM.filter(f => f.s === 'chem').map(formulaTool)] },
   mech: { n: 'الميكانيكا والهندسة', i: 'fa-gears', c: '#f59e0b', tools: [...MECH_EXTRA, ...FM.filter(f => f.s === 'mech').map(formulaTool)] },
   ai: { n: 'الذكاء والصور', i: 'fa-wand-magic-sparkles', c: '#ec4899', tools: [
@@ -320,9 +381,12 @@ const SEC = {
         try { const r = math.evaluate(t.replace(/\n/g, ' ').replace(/=\s*\??$/, '')); st.push('بدت العبارة تعبيراً قابلاً للحساب فحُسبت.'); res = t + '  →  ' + fmt(r); } catch { st.push('انسخ النص إلى أداة الرياضيات بعد تصحيح أي حرف أُسيء فهمه.'); }
         return { steps: st, res }; } }
   ] },
+  fav: { n: 'المفضلة', i: 'fa-star', c: '#f59e0b', custom: renderFav },
   vars: { n: 'المتغيرات', i: 'fa-database', c: '#14b8a6', custom: renderVars },
   set: { n: 'الإعدادات', i: 'fa-gear', c: '#94a3b8', custom: renderSettings }
 };
+
+SEC.ai.tools[0].voice = true; // الإملاء الصوتي لقسم المسائل
 
 /* ---------- 10) رسم الواجهة ---------- */
 const fieldHTML = f => f.o ? `<label>${f.l}<select data-k="${f.k}">${f.o.map(([a, b]) => `<option value="${a}">${b}</option>`).join('')}</select></label>`
@@ -334,33 +398,144 @@ function open(s, t = 0) {
   const S = SEC[s]; document.documentElement.style.setProperty('--ac', S.c);
   $('#title').textContent = S.n; $('#hist').classList.remove('show');
   $$('#nav button,#gnav button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
-  const v = $('#view'); if (S.custom) return S.custom(v);
+  const v = $('#view'); if (S.custom) { S.custom(v); return mkSync(); }
   const T = S.tools[t];
   v.innerHTML = `<div class="chips">${S.tools.map((x, i) => `<button class="chip ${i === t ? 'on' : ''}" data-i="${i}">${x.n}</button>`).join('')}</div>
-  <div class="card"><h2>${T.n}</h2>${T.note ? `<p class="note">${T.note}</p>` : ''}<div class="fields">${T.fields.map(fieldHTML).join('')}</div>
+  <div class="card"><h2>${T.n} <button class="icon" id="fav" title="إضافة للمفضلة" style="display:inline-grid;vertical-align:middle"><i class="fa-${favs.includes(s + ':' + t) ? 'solid' : 'regular'} fa-star"></i></button></h2>${T.note ? `<p class="note">${T.note}</p>` : ''}<div class="fields">${T.fields.map(fieldHTML).join('')}</div>
   <button class="btn" id="go"><i class="fa-solid fa-play"></i> احسب</button></div><div id="out"></div>`;
   $$('.chip', v).forEach(b => b.onclick = () => open(s, +b.dataset.i));
   $('#go').onclick = () => run(T);
+  $('#fav').onclick = () => { const k = s + ':' + t; favs = favs.includes(k) ? favs.filter(x => x !== k) : [...favs, k]; store.set('favs', favs); $('#fav i').className = `fa-${favs.includes(k) ? 'solid' : 'regular'} fa-star`; };
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (T.voice && SR) { const mic = document.createElement('button'); mic.className = 'btn ghost'; mic.style.marginInlineStart = '8px'; const lbl = '<i class="fa-solid fa-microphone"></i> إملاء صوتي'; mic.innerHTML = lbl; $('#go').after(mic);
+    mic.onclick = () => { const r = new SR(); r.lang = 'ar-SA'; r.interimResults = false; mic.textContent = '… أستمع'; r.onresult = e => { $('[data-k=txt]').value = e.results[0][0].transcript; run(T); }; r.onerror = () => modal('تعذّر الإملاء الصوتي: تأكد من السماح باستخدام الميكروفون.'); r.onend = () => mic.innerHTML = lbl; r.start(); }; }
+  if (T.live) { let tm; $$('input[data-k],select[data-k]', v).forEach(i => i.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => run(T, true), 350); })); }
   $$('input[data-k]:not([type=file])', v).forEach(i => i.onkeydown = e => { if (e.key === 'Enter') run(T); });
   const act = $('.chip.on', v); if (act) act.scrollIntoView({ inline: 'center', block: 'nearest' });
+  mkSync();
 }
-async function run(T) {
+async function run(T, live) {
   const out = $('#out'), v = {};
   $$('[data-k]', $('#view')).forEach(el => v[el.dataset.k] = el.type === 'file' ? el.files[0] : el.value);
   out.innerHTML = '<div class="card loading"><i class="fa-solid fa-spinner fa-spin"></i> جارٍ الحساب…</div>';
   try {
     const r = await T.run(v);
     out.innerHTML = `<div class="card res"><h3>الحل خطوة بخطوة</h3><ol>${r.steps.map(x => `<li>${x}</li>`).join('')}</ol><div class="big">${esc(r.res)}</div>
-    ${r.val !== undefined && isFinite(r.val) ? '<button class="btn ghost" id="sv"><i class="fa-solid fa-bookmark"></i> حفظ كمتغير</button>' : ''}${r.plot ? '<div id="plot"></div>' : ''}</div>`;
+    <button class="btn ghost" id="cp"><i class="fa-regular fa-copy"></i> نسخ</button> ${navigator.share ? '<button class="btn ghost" id="shr"><i class="fa-solid fa-share-nodes"></i> مشاركة</button>' : ''} ${r.val !== undefined && isFinite(r.val) ? '<button class="btn ghost" id="sv"><i class="fa-solid fa-bookmark"></i> حفظ كمتغير</button>' : ''}${r.plot ? '<div id="plot"></div>' : ''}</div>`;
     if (r.plot) r.plot('plot');
+    $('#cp').onclick = async e => { try { await navigator.clipboard.writeText(r.res); e.currentTarget.textContent = 'تم النسخ ✓'; } catch {} };
+    if (r.val !== undefined && isFinite(r.val)) { vars.ans = r.val; store.set('vars', vars); }
+    const sh = $('#shr'); if (sh) sh.onclick = () => navigator.share({ title: T.n, text: T.n + ': ' + r.res }).catch(() => {});
     const sv = $('#sv'); if (sv) sv.onclick = () => { const n = prompt('اسم المتغير (حروف إنجليزية):', 'r1'); if (n && /^[A-Za-z_]\w*$/.test(n)) { vars[n] = r.val; store.set('vars', vars); sv.textContent = 'تم الحفظ ✓'; } };
-    hist.unshift({ t: T.n, r: r.res }); hist = hist.slice(0, 40); store.set('hist', hist); renderHist();
+    if (!live) hist.unshift({ t: T.n, r: r.res }); hist = hist.slice(0, 40); store.set('hist', hist); renderHist();
   } catch (e) {
     out.innerHTML = `<div class="card err"><h3><i class="fa-solid fa-triangle-exclamation"></i> تعذّر الحساب</h3><p>${esc(explain(e))}</p></div>`;
   }
 }
 function renderHist() {
-  $('#histList').innerHTML = hist.length ? hist.map(h => `<li><small>${esc(h.t)}</small><b>${esc(h.r)}</b></li>`).join('') : '<li><small>لا توجد عمليات بعد — ابدأ بأي أداة.</small></li>';
+  $('#histList').innerHTML = hist.length ? hist.map((h, i) => `<li data-n="${i}" style="cursor:pointer" title="اضغط للنسخ"><small>${esc(h.t)}</small><b>${esc(h.r)}</b></li>`).join('') : '<li><small>لا توجد عمليات بعد — ابدأ بأي أداة.</small></li>';
+  $$('#histList li[data-n]').forEach(li => li.onclick = async () => { try { await navigator.clipboard.writeText(hist[+li.dataset.n].r); li.style.outline = '2px solid var(--ac)'; setTimeout(() => li.style.outline = '', 600); } catch {} });
+}
+
+/* الحاسبة العلمية ذات الأزرار: كل العمليات على الشاشة، مع طبقة ثانية (2nd) وذاكرة */
+let degMode = store.get('deg', true);
+function calcEval(t) {
+  if (degMode) t = t.replace(/\b(a?(?:sin|cos|tan))\(/g, '$1d(');
+  const r = math.evaluate(t.replace(/%/g, '/100'), scope());
+  if (typeof r === 'number' && !isFinite(r)) throw new Error('DIV0');
+  return r;
+}
+/* عرض التعبير بالرموز الجميلة: √ π × ÷ ² ³ */
+const pretty = s => s.replace(/\blog\(/g, 'ln(').replace(/log10\(/g, 'log(').replace(/nthRoot\(/g, 'ⁿ√(').replace(/sqrt\(/g, '√(').replace(/cbrt\(/g, '∛(')
+  .replace(/\^2(?!\d)/g, '²').replace(/\^3(?!\d)/g, '³').replace(/\bpi\b/g, 'π').replace(/\*10\^/g, '×10^').replace(/\*/g, '×').replace(/\//g, '÷').replace(/-/g, '−');
+function renderCalc(v) {
+  // [التسمية، الإدخال، الصنف، تسمية الطبقة الثانية، إدخالها]
+  const K = [['2nd', '2ND', 'fn'], ['DEG', 'MODE', 'fn'], ['(', '('], [')', ')'], ['⌫', 'B', 'op'], ['C', 'C', 'op'],
+    ['sin', 'sin(', 'fn', 'sin⁻¹', 'asin('], ['x²', '^2', 'fn', 'x³', '^3'], ['7'], ['8'], ['9'], ['÷', '/', 'op'],
+    ['cos', 'cos(', 'fn', 'cos⁻¹', 'acos('], ['√', 'sqrt(', 'fn', '∛', 'cbrt('], ['4'], ['5'], ['6'], ['×', '*', 'op'],
+    ['tan', 'tan(', 'fn', 'tan⁻¹', 'atan('], ['xⁿ', '^', 'fn', 'ⁿ√', 'nthRoot('], ['1'], ['2'], ['3'], ['−', '-', 'op'],
+    ['log', 'log10(', 'fn', '10ˣ', '10^('], ['ln', 'log(', 'fn', 'eˣ', 'exp('], ['0'], ['.'], ['EXP', '*10^', 'fn'], ['+', '+', 'op'],
+    ['π', 'pi', 'fn', 'e', 'e'], ['x!', '!', 'fn', 'nCr', 'combinations('], ['1/x', '1/(', 'fn', 'mod', ' mod '], ['abs', 'abs(', 'fn', ',', ','], ['ans', 'ans', 'fn', '%', '%'], ['=', '=', 'eq'],
+    ['MC', 'MC', 'mem'], ['MR', 'MR', 'mem'], ['M+', 'M+', 'mem'], ['M−', 'M-', 'mem'], ['±', 'PM', 'fn'], ['a/b', 'FRAC', 'fn']];
+  v.innerHTML = `<div class="card calc"><input id="disp" class="disp" dir="ltr" inputmode="none" autocomplete="off" placeholder="اكتب أو اضغط الأزرار…">
+  <div id="pretty" class="pretty">&nbsp;</div><div id="cres" class="cres">&nbsp;</div>
+  <div class="keys">${K.map(([l, i = l, c = '', l2 = '', i2 = '']) => `<button class="k ${c}" data-l="${esc(i === 'MODE' ? (degMode ? 'DEG' : 'RAD') : l)}" data-i="${esc(i)}" data-l2="${esc(l2)}" data-i2="${esc(i2)}">${i === 'MODE' ? (degMode ? 'DEG' : 'RAD') : l}</button>`).join('')}</div>
+  <p class="note" style="margin-top:12px">كل العمليات على الشاشة: اضغط <b>2nd</b> للدوال العكسية والجذر التكعيبي والتكعيب. <code>ans</code> آخر ناتج، و<code>M</code> الذاكرة.</p></div>`;
+  const d = $('#disp'), res = $('#cres'), pr = $('#pretty'); let sec = false;
+  const show = () => { pr.textContent = pretty(d.value) || '\u00a0'; };
+  const preview = () => { show(); res.style.color = ''; try { res.textContent = d.value.trim() ? '= ' + fmt(calcEval(d.value)) : '\u00a0'; } catch { res.textContent = '\u00a0'; } };
+  const equals = () => { try { const r = calcEval(d.value), s = fmt(r); if (typeof r === 'number') { vars.ans = r; store.set('vars', vars); }
+      hist.unshift({ t: 'الحاسبة', r: pretty(d.value) + ' = ' + s }); hist = hist.slice(0, 40); store.set('hist', hist); renderHist(); show(); res.style.color = ''; res.textContent = '= ' + s; d.value = s; }
+    catch (e) { res.style.color = 'var(--er)'; res.textContent = explain(e); } };
+  $$('.k', v).forEach(b => b.onclick = () => {
+    buzz();
+    const i = sec && b.dataset.i2 ? b.dataset.i2 : b.dataset.i;
+    try {
+      if (i === 'C') d.value = ''; else if (i === 'B') d.value = d.value.slice(0, -1); else if (i === '=') return equals();
+      else if (i === '2ND') { sec = !sec; b.classList.toggle('sec', sec); $$('.k', v).forEach(k => { k.textContent = sec && k.dataset.l2 ? k.dataset.l2 : k.dataset.l; }); return; }
+      else if (i === 'MODE') { degMode = !degMode; store.set('deg', degMode); b.dataset.l = b.textContent = degMode ? 'DEG' : 'RAD'; }
+      else if (i === 'MC') { delete vars.M; store.set('vars', vars); res.textContent = 'تم مسح الذاكرة'; return; }
+      else if (i === 'MR') d.value += 'M';
+      else if (i === 'M+' || i === 'M-') { const r = calcEval(d.value); vars.M = (vars.M || 0) + (i === 'M+' ? r : -r); store.set('vars', vars); res.textContent = 'M = ' + fmt(vars.M); return; }
+      else if (i === 'PM') d.value = d.value ? (d.value.startsWith('-(') ? d.value.slice(2, -1) : '-(' + d.value + ')') : '-';
+      else if (i === 'FRAC') { const r = calcEval(d.value); res.textContent = '= ' + math.format(math.fraction(r)); return; }
+      else d.value += i;
+      if (sec && i !== '2ND') { sec = false; $$('.k', v).forEach(k => { k.textContent = k.dataset.l; k.classList.remove('sec'); }); }
+    } catch (e) { res.style.color = 'var(--er)'; res.textContent = explain(e); return; }
+    preview();
+  });
+  d.oninput = preview; d.onkeydown = e => { if (e.key === 'Enter') equals(); };
+}
+
+/* ---------- لوحة الرياضيات العامة: تُدخل الرموز في أي حقل بأي أداة ---------- */
+const MK = {
+  'أساسي': [['7'], ['8'], ['9'], ['÷', '/'], ['⌫', 'B'], ['C', 'C'], ['4'], ['5'], ['6'], ['×', '*'], ['(', '('], [')', ')'], ['1'], ['2'], ['3'], ['−', '-'], ['x²', '^2'], ['x³', '^3'],
+    ['0'], ['.'], [',', ','], ['+', '+'], ['√', 'sqrt('], ['xⁿ', '^'], ['←', 'L'], ['→', 'R'], ['∛', 'cbrt('], ['π', 'pi'], ['e', 'e'], ['1/x', '1/(']],
+  'دوال': [['sin', 'sin('], ['cos', 'cos('], ['tan', 'tan('], ['asin', 'asin('], ['acos', 'acos('], ['atan', 'atan('], ['sinh', 'sinh('], ['cosh', 'cosh('], ['tanh', 'tanh('], ['log', 'log10('], ['ln', 'log('], ['eˣ', 'exp('],
+    ['abs', 'abs('], ['floor', 'floor('], ['ceil', 'ceil('], ['round', 'round('], ['x!', '!'], ['mod', ' mod '], ['gcd', 'gcd('], ['lcm', 'lcm('], ['nCr', 'combinations('], ['nPr', 'permutations('], ['mean', 'mean('], ['⌫', 'B']],
+  'رموز': [['x', 'x'], ['y', 'y'], ['z', 'z'], ['t', 't'], ['n', 'n'], ['a', 'a'], ['b', 'b'], ['th', 'th'], ['i', 'i'], ['∞', 'Infinity'], ['°', '*pi/180'], ['%', '%'],
+    ['[', '['], [']', ']'], ['[[', '[['], [']]', ']]'], ['=', '='], ['@', '@'], ['<', '<'], ['>', '>'], ['dx', 'dx'], ['dt', 'dt'], ['←', 'L'], ['→', 'R'], ['⌫', 'B'], ['C', 'C']]
+};
+let lastField = null, kbOn = store.get('kb', matchMedia('(pointer:coarse)').matches), sysKb = false;
+const mk = document.createElement('div'); mk.className = 'mk glass';
+const mkBtn = document.createElement('button'); mkBtn.id = 'mkBtn'; mkBtn.setAttribute('aria-label', 'لوحة الرياضيات'); mkBtn.innerHTML = '<i class="fa-solid fa-square-root-variable"></i>';
+document.body.append(mk, mkBtn);
+const mkFields = () => $$('#view input[data-k]:not([type=file]), #view textarea[data-k], #vv');
+function mkSync() { // يظهر الزر فقط حين توجد حقول نصية في الأداة الحالية
+  const has = mkFields().length > 0; mkBtn.style.display = has && !mk.classList.contains('on') ? '' : 'none';
+  if (!has) { mk.classList.remove('on'); document.body.classList.remove('mkon'); }
+  mkFields().forEach(f => f.inputMode = mk.classList.contains('on') && !sysKb ? 'none' : 'text');
+}
+function mkShow(on) { mk.classList.toggle('on', on); document.body.classList.toggle('mkon', on); store.set('kb', on); kbOn = on; mkSync(); }
+function mkDraw(tab = 'أساسي') {
+  mk.innerHTML = `<div class="tabs">${Object.keys(MK).map(t => `<button data-t="${t}" class="${t === tab ? 'on' : ''}">${t}</button>`).join('')}<button data-sys="1">${sysKb ? 'لوحتي' : 'abc'}</button><button data-x="1">✕</button></div>
+  <div class="kg">${MK[tab].map(([l, i = l]) => `<button data-i="${esc(i)}">${l}</button>`).join('')}</div>`;
+}
+function mkInsert(i) {
+  const f = lastField; if (!f || !document.contains(f)) return;
+  let s = f.selectionStart ?? f.value.length, e = f.selectionEnd ?? s;
+  if (i === 'C') { f.value = ''; s = e = 0; }
+  else if (i === 'B') { if (s === e && s > 0) s--; f.setRangeText('', s, e, 'end'); }
+  else if (i === 'L') { f.setSelectionRange(Math.max(0, s - 1), Math.max(0, s - 1)); return; }
+  else if (i === 'R') { f.setSelectionRange(s + 1, s + 1); return; }
+  else f.setRangeText(i, s, e, 'end');
+  f.dispatchEvent(new Event('input', { bubbles: true }));
+}
+mkDraw();
+mk.addEventListener('pointerdown', e => e.preventDefault()); // لا تُفقد التركيز عن الحقل
+mk.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; buzz();
+  if (b.dataset.t) return mkDraw(b.dataset.t);
+  if (b.dataset.x) return mkShow(false);
+  if (b.dataset.sys) { sysKb = !sysKb; mkDraw($('.tabs .on', mk)?.dataset.t); mkSync(); if (lastField) { lastField.blur(); lastField.focus(); } return; }
+  mkInsert(b.dataset.i); });
+mkBtn.onclick = () => { mkShow(true); if (!lastField || !document.contains(lastField)) lastField = mkFields()[0] || null; if (lastField) lastField.focus(); };
+document.addEventListener('focusin', e => { if (mkFields().includes(e.target)) { lastField = e.target; if (kbOn && !mk.classList.contains('on')) mkShow(true); } });
+
+/* قسم المفضلة */
+function renderFav(v) {
+  const L = favs.map(k => { const [sk, i] = k.split(':'), T = SEC[sk] && SEC[sk].tools && SEC[sk].tools[+i]; return T ? { sk, i: +i, n: T.n, sn: SEC[sk].n } : null; }).filter(Boolean);
+  v.innerHTML = `<div class="card"><h2>الأدوات المفضلة</h2><p class="note">اضغط النجمة ⭐ داخل أي أداة لتثبيتها هنا والوصول إليها بسرعة.</p>${L.length ? L.map(x => `<button class="chip" style="margin:4px" data-s="${x.sk}" data-i="${x.i}">${x.n} · ${x.sn}</button>`).join('') : '<p class="note">لا توجد أدوات مفضلة بعد.</p>'}</div>`;
+  $$('[data-s]', v).forEach(b => b.onclick = () => open(b.dataset.s, +b.dataset.i));
 }
 
 /* قسم المتغيرات المخصصة */
@@ -375,18 +550,44 @@ function renderVars(v) {
 
 /* قسم الإعدادات (يتضمن مكان الباركود) */
 function renderSettings(v) {
+  const sel = (id, l, o, cur) => `<label>${l}<select id="${id}">${o.map(([x, y]) => `<option value="${x}" ${String(x) === String(cur) ? 'selected' : ''}>${y}</option>`).join('')}</select></label>`;
   v.innerHTML = `<div class="card"><h2>المظهر</h2><p class="note">نهار / ليل</p><button class="dn" id="dn" aria-label="تبديل المظهر"></button>
-  <div class="fields" style="margin-top:14px"><label>حجم الخط<select id="fs"><option value="14px">صغير</option><option value="16px">متوسط</option><option value="18px">كبير</option></select></label></div></div>
-  <div class="card"><img src="logo.png" alt="MathNova" style="width:100%;max-width:420px;border-radius:16px;margin-bottom:12px"><h2>مشاركة التطبيق</h2><p class="note">امسح الباركود أو شارك الرابط.</p><div class="qr" id="qrBox"></div><br>
+  <div class="fields" style="margin-top:14px">${sel('fs', 'حجم الخط', [['14px', 'صغير'], ['16px', 'متوسط'], ['18px', 'كبير'], ['20px', 'كبير جداً']], store.get('fs', '16px'))}</div></div>
+  <div class="card"><h2>الدقة والحساب</h2><div class="fields">
+    ${sel('prec', 'الأرقام المعنوية', [[6, '6'], [8, '8'], [10, '10 (افتراضي)'], [12, '12'], [15, '15']], cfg.prec)}
+    ${sel('fmtn', 'صيغة الأعداد', [['n', 'عادية'], ['s', 'علمية (1.23e+5)']], cfg.sci ? 's' : 'n')}
+    ${sel('ang', 'وحدة الزوايا', [['d', 'درجات DEG'], ['r', 'راديان RAD']], degMode ? 'd' : 'r')}
+    ${sel('vib', 'اهتزاز الأزرار', [['0', 'متوقف'], ['1', 'مفعّل']], cfg.vib ? '1' : '0')}
+    ${sel('kbp', 'لوحة الرياضيات', [['1', 'تظهر تلقائياً عند الكتابة'], ['0', 'عند الطلب فقط']], kbOn ? '1' : '0')}</div></div>
+  <div class="card"><h2>مشاركة التطبيق</h2><p class="note">امسح الباركود أو شارك الرابط.</p><div class="qr" id="qrBox"></div><br>
   <button class="btn" id="share"><i class="fa-solid fa-share-nodes"></i> مشاركة الرابط</button></div>
-  <div class="card"><h2>البيانات</h2><button class="btn ghost" id="ch">مسح السجل</button> <button class="btn ghost" id="cv">مسح المتغيرات</button></div>
-  <div class="card"><h2>عن التطبيق</h2><p class="note">الحسابات تعمل على جهازك. أول تشغيل يحتاج إنترنت لتحميل المكتبات، ثم تُحفظ للعمل دون اتصال (ما عدا قراءة الصور).</p></div>`;
-  const img = new Image(); img.src = 'qr.png'; img.alt = 'باركود'; img.onload = () => $('#qrBox').replaceChildren(img); // ضع qr.png بجانب index.html
-  $('#qrBox').textContent = 'مكان الباركود: ضع الملف qr.png بجانب index.html';
+  <div class="card"><h2>النسخ الاحتياطي</h2><p class="note">صدّر متغيراتك وسجلك ومفضلتك وإعداداتك كملف، واستعدها في أي جهاز.</p>
+    <button class="btn ghost" id="exp"><i class="fa-solid fa-file-export"></i> تصدير نسخة</button>
+    <label class="btn ghost" style="display:inline-flex;cursor:pointer"><i class="fa-solid fa-file-import"></i>&nbsp;استعادة نسخة<input id="imp" type="file" accept=".json,application/json" hidden></label>
+    <button class="btn ghost" id="exh"><i class="fa-solid fa-file-lines"></i> تصدير السجل كنص</button></div>
+  <div class="card"><h2>الصيانة</h2><button class="btn ghost" id="upd"><i class="fa-solid fa-rotate"></i> تحديث التطبيق وإفراغ الذاكرة المؤقتة</button>
+    <button class="btn ghost" id="ch">مسح السجل</button> <button class="btn ghost" id="cv">مسح المتغيرات</button></div>
+  <div class="card"><h2>عن MathNova</h2><p class="note">الإصدار 3 — الحسابات تعمل على جهازك. أول تشغيل يحتاج إنترنت لتحميل المكتبات، ثم تعمل دون اتصال (ما عدا قراءة الصور).</p></div>`;
+  const save = () => store.set('cfg', cfg), box = $('#qrBox');
+  box.textContent = 'مكان الباركود: ضع الملف qr.png بجانب index.html';
+  const img = new Image(); img.alt = 'باركود MathNova'; img.onload = () => { box.classList.add('ok'); box.replaceChildren(img); }; img.src = 'qr.png';
   $('#dn').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
-  $('#fs').value = store.get('fs', '16px'); $('#fs').onchange = e => { store.set('fs', e.target.value); document.documentElement.style.setProperty('--fs', e.target.value); };
+  $('#fs').onchange = e => { store.set('fs', e.target.value); document.documentElement.style.setProperty('--fs', e.target.value); };
+  $('#prec').onchange = e => { cfg.prec = +e.target.value; save(); };
+  $('#fmtn').onchange = e => { cfg.sci = e.target.value === 's'; save(); };
+  $('#ang').onchange = e => { degMode = e.target.value === 'd'; store.set('deg', degMode); };
+  $('#vib').onchange = e => { cfg.vib = e.target.value === '1'; save(); buzz(); };
+  $('#kbp').onchange = e => { kbOn = e.target.value === '1'; store.set('kb', kbOn); };
   $('#share').onclick = async () => { const d = { title: document.title, text: 'MathNova — العلم في معادلة واحدة', url: location.href }; try { navigator.share ? await navigator.share(d) : (await navigator.clipboard.writeText(location.href), modal('تم نسخ الرابط.')); } catch {} };
-  $('#ch').onclick = () => { hist = []; store.set('hist', hist); renderHist(); };
+  const dl = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+  $('#exp').onclick = () => dl('mathnova-backup.json', JSON.stringify({ app: 'MathNova', vars, hist, favs, cfg, deg: degMode, theme: store.get('theme', 'dark'), fs: store.get('fs', '16px') }, null, 1), 'application/json');
+  $('#exh').onclick = () => dl('mathnova-history.txt', hist.map(h => `${h.t}: ${h.r}`).join('\n') || 'السجل فارغ', 'text/plain;charset=utf-8');
+  $('#imp').onchange = async e => { try { const d = JSON.parse(await e.target.files[0].text()); if (d.app !== 'MathNova') throw 0;
+      vars = d.vars || {}; hist = d.hist || []; favs = d.favs || []; Object.assign(cfg, d.cfg || {}); if (d.deg !== undefined) degMode = d.deg;
+      store.set('vars', vars); store.set('hist', hist); store.set('favs', favs); store.set('cfg', cfg); store.set('deg', degMode); renderHist(); modal('تمت استعادة النسخة الاحتياطية ✓'); }
+    catch { modal('الملف غير صالح: اختر ملفاً صدّرته من MathNova.'); } };
+  $('#upd').onclick = async () => { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r => r.unregister())); for (const k of await caches.keys()) await caches.delete(k); } catch {} location.reload(); };
+  $('#ch').onclick = () => { hist = []; store.set('hist', hist); renderHist(); modal('تم مسح السجل.'); };
   $('#cv').onclick = () => { vars = {}; store.set('vars', vars); modal('تم مسح المتغيرات.'); };
 }
 function setTheme(t) { document.documentElement.dataset.theme = t; store.set('theme', t); $('meta[name=theme-color]').content = t === 'dark' ? '#0b1020' : '#eef1fb'; }
@@ -396,7 +597,7 @@ function modal(h) { $('#modalBody').innerHTML = h; $('#modal').hidden = false; }
 setTheme(store.get('theme', 'dark')); document.documentElement.style.setProperty('--fs', store.get('fs', '16px'));
 const items = Object.entries(SEC);
 $('#nav').innerHTML = items.map(([k, S]) => `<button data-s="${k}"><i class="fa-solid ${S.i}"></i><span>${S.n}</span></button>`).join('');
-$('#gnav').innerHTML = items.filter(([k]) => k !== 'vars').map(([k, S]) => `<button data-s="${k}"><i class="fa-solid ${S.i}"></i>${S.n.split(' ')[0]}</button>`).join('');
+$('#gnav').innerHTML = items.filter(([k]) => !['vars', 'fav'].includes(k)).map(([k, S]) => `<button data-s="${k}"><i class="fa-solid ${S.i}"></i>${S.n.split(' ')[0]}</button>`).join('');
 $$('#nav button,#gnav button').forEach(b => b.onclick = () => open(b.dataset.s));
 $('#collapse').onclick = () => { $('#side').classList.toggle('collapsed'); $('#app').classList.toggle('col'); };
 $('#histToggle').onclick = () => $('#hist').classList.toggle('show');
@@ -424,4 +625,4 @@ ib.onclick = async () => {
 };
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 
-renderHist(); open('math');
+renderHist(); const h0 = location.hash.slice(1); open(SEC[h0] ? h0 : 'calc');
